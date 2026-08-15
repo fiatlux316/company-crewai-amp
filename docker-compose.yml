@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # API 게이트웨이
+  gateway:
+    build: .
+    command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:////app/data/crew_amp.db
+      - CREWAI_API_KEY=super-secret-company-key
+      # 로컬 테스트용이므로 실제 OpenAI API 키는 주입하지 않음 (Mock Crew 실행 예정)
+      - OPENAI_API_KEY=mock-key
+    volumes:
+      - shared-db:/app/data
+    depends_on:
+      - redis
+
+  # 비동기 작업 큐
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # CrewAI 에이전트 실행 워커
+  worker:
+    build: .
+    command: celery -A gateway.celery_app.celery_app worker --loglevel=info -c 2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:////app/data/crew_amp.db
+      - OPENAI_API_KEY=mock-key
+    volumes:
+      - shared-db:/app/data
+    depends_on:
+      - redis
+
+volumes:
+  shared-db:

@@ -1,0 +1,10 @@
+fastapi>=0.110.0
+uvicorn>=0.28.0
+crewai>=0.28.0
+celery>=5.3.6
+redis>=5.0.3
+sqlalchemy>=2.0.28
+pydantic-settings>=2.2.1
+# 개별 추가
+markdown>=3.10.3
+crewai[bedrock]==1.14.7
