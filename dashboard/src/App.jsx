@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Play, 
-  History, 
-  Settings, 
-  Key, 
-  Cpu, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
-  Terminal, 
-  ArrowRight, 
+import React, { useState, useEffect } from 'react';
+import {
+  Play,
+  History,
+  Settings,
+  Key,
+  Cpu,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Terminal,
   ChevronRight,
   Database,
-  ExternalLink,
-  Code
+  Code,
+  UploadCloud,
+  FileCheck
 } from 'lucide-react';
 
 export default function App() {
@@ -26,15 +26,30 @@ export default function App() {
   );
   const [crews, setCrews] = useState([]);
   const [tasks, setTasks] = useState([]);
-  
-  const [activeTab, setActiveTab] = useState('crews'); // 'crews' | 'history'
+
+  const [activeTab, setActiveTab] = useState('crews'); // 'crews' | 'history' | 'upload'
   const [selectedCrew, setSelectedCrew] = useState(null);
   const [inputsJson, setInputsJson] = useState('{\n  "topic": "SaaS Marketing"\n}');
-  
+
   const [selectedTask, setSelectedTask] = useState(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [pollingTaskId, setPollingTaskId] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // 업로드 관련 상태
+  const [uploadFile, setUploadFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [registeredCrewInfo, setRegisteredCrewInfo] = useState(null);
+  
+  // 업로드 진행률 및 중복 확인 모달 상태 추가
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
+
+  const sanitizeCrewId = (name) => {
+    return name.replace(/-/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+  };
 
   // 2. 환경 설정 자동 저장 (Auto-save configuration)
   useEffect(() => {
@@ -49,11 +64,15 @@ export default function App() {
   const fetchWithAuth = async (path, options = {}) => {
     const url = `${apiEndpoint.replace(/\/$/, '')}${path}`;
     const headers = {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
       ...options.headers,
     };
-    
+
+    // Content-Type 은 Multipart 의 경우 브라우저가 자동 boundary 설정하므로 제외 가능하도록 설계
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(url, { ...options, headers });
     if (!response.ok) {
       const errorText = await response.text();
@@ -74,8 +93,15 @@ export default function App() {
       setErrorMsg('');
       const data = await fetchWithAuth('/api/v1/crews');
       setCrews(data);
-      if (data.length > 0 && !selectedCrew) {
-        setSelectedCrew(data[0]);
+      // 첫 로드 또는 에이전트 목록이 갱신되었을 때 선택 처리
+      if (data.length > 0) {
+        // 이미 선택된 crew가 리스트에 없다면 첫 번째로 변경
+        const stillExists = data.find(c => c.crew_id === selectedCrew?.crew_id);
+        if (!stillExists) {
+          setSelectedCrew(data[0]);
+        }
+      } else {
+        setSelectedCrew(null);
       }
     } catch (e) {
       console.error(e);
@@ -97,7 +123,20 @@ export default function App() {
     loadTasks();
   }, [apiEndpoint, apiKey]);
 
-  // 5. 비동기 작업 폴링 루프 (Polling Mechanism)
+  // 5. 선택된 Crew 변경 시, 해당 에이전트의 default_inputs 자동 인출 주입
+  useEffect(() => {
+    if (selectedCrew) {
+      const defaultInputs = selectedCrew.default_inputs || {};
+      // 빈 딕셔너리면 기본 예시 형식 제공
+      if (Object.keys(defaultInputs).length === 0) {
+        setInputsJson('{\n  "topic": "SaaS Marketing"\n}');
+      } else {
+        setInputsJson(JSON.stringify(defaultInputs, null, 2));
+      }
+    }
+  }, [selectedCrew]);
+
+  // 6. 비동기 작업 폴링 루프 (Polling Mechanism)
   useEffect(() => {
     let intervalId = null;
 
@@ -105,15 +144,12 @@ export default function App() {
       intervalId = setInterval(async () => {
         try {
           const task = await fetchWithAuth(`/api/v1/tasks/${pollingTaskId}`);
-          
-          // 태스크 상세 정보 업데이트
           setSelectedTask(task);
-          
-          // 상태가 SUCCESS 또는 FAILED 이면 폴링 정지
+
           if (task.status === 'SUCCESS' || task.status === 'FAILED') {
             setPollingTaskId(null);
             setIsExecuting(false);
-            loadTasks(); // 히스토리 갱신
+            loadTasks();
           }
         } catch (e) {
           console.error('Polling error:', e);
@@ -128,7 +164,7 @@ export default function App() {
     };
   }, [pollingTaskId]);
 
-  // 6. Crew 실행 요청 (Trigger execution)
+  // 7. Crew 실행 요청 (Trigger execution)
   const handleKickoff = async () => {
     if (!selectedCrew) return;
     setErrorMsg('');
@@ -149,10 +185,8 @@ export default function App() {
         body: JSON.stringify({ inputs: parsedInputs }),
       });
 
-      // 폴링 시작 설정
       setPollingTaskId(result.task_id);
-      
-      // 바로 작업 상세화면 및 모니터링 탭으로 상태 전환
+
       setSelectedTask({
         id: result.task_id,
         crew_id: selectedCrew.crew_id,
@@ -165,6 +199,89 @@ export default function App() {
       setErrorMsg(`Failed to kickoff crew: ${e.message}`);
       setIsExecuting(false);
     }
+  };
+
+  // 8. ZIP 파일 업로드 및 에이전트 등록 요청 (중복 검사 및 진행률 추적 XHR 적용)
+  const handleUploadSubmit = (e) => {
+    e.preventDefault();
+    const file = uploadFile || pendingFile;
+    if (!file) return;
+
+    setErrorMsg('');
+    setUploadSuccess(false);
+    setRegisteredCrewInfo(null);
+
+    // ZIP 파일명 기준 sanitized crew_id 계산
+    const baseName = file.name.replace(/\.zip$/i, '');
+    const targetCrewId = sanitizeCrewId(baseName);
+
+    // 중복 체크: 이미 동일한 crew_id가 존재하는지 검사
+    const isDuplicate = crews.some(c => c.crew_id === targetCrewId);
+
+    if (isDuplicate && !showConfirmModal) {
+      // 중복이면서 모달을 띄우지 않은 상태라면 모달 띄우기
+      setPendingFile(file);
+      setShowConfirmModal(true);
+    } else {
+      // 중복이 아니거나 모달에서 덮어쓰기 승인(Yes)된 경우
+      setShowConfirmModal(false);
+      performUpload(file, isDuplicate);
+    }
+  };
+
+  const performUpload = (file, overwrite) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const xhr = new XMLHttpRequest();
+    const url = `${apiEndpoint.replace(/\/$/, '')}/api/v1/crews/upload?overwrite=${overwrite}`;
+    
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+    
+    // 업로드 실시간 진행률 갱신
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percent);
+      }
+    };
+    
+    xhr.onload = async () => {
+      setIsUploading(false);
+      setPendingFile(null);
+      setUploadFile(null);
+      
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          setUploadSuccess(true);
+          setRegisteredCrewInfo(response.crew);
+          await loadCrews(); // 리스트 새로고침
+        } catch (e) {
+          setErrorMsg('Failed to parse upload response.');
+        }
+      } else {
+        try {
+          const errRes = JSON.parse(xhr.responseText);
+          setErrorMsg(errRes.detail || `Upload failed with status ${xhr.status}`);
+        } catch (e) {
+          setErrorMsg(`Upload failed with status ${xhr.status}`);
+        }
+        setUploadProgress(0);
+      }
+    };
+    
+    xhr.onerror = () => {
+      setIsUploading(false);
+      setPendingFile(null);
+      setErrorMsg('Network error occurred during file upload.');
+      setUploadProgress(0);
+    };
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    xhr.send(formData);
   };
 
   const getStatusBadgeClass = (status) => {
@@ -195,19 +312,32 @@ export default function App() {
           </div>
         </div>
 
+        <li
+          className={`nav-item ${activeTab === 'upload' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('upload');
+            setUploadSuccess(false);
+            setRegisteredCrewInfo(null);
+          }}
+        >
+          <UploadCloud size={18} />
+          <span>Register Crew</span>
+        </li>
+
         <ul className="nav-menu">
-          <li 
+          <li
             className={`nav-item ${activeTab === 'crews' ? 'active' : ''}`}
             onClick={() => setActiveTab('crews')}
           >
             <Play size={18} />
             <span>Crews Executer</span>
           </li>
-          <li 
+
+          <li
             className={`nav-item ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('history');
-              loadTasks(); // 탭 이동 시 최신 내역 조회
+              loadTasks();
             }}
           >
             <History size={18} />
@@ -223,22 +353,22 @@ export default function App() {
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <label style={{ fontSize: '0.65rem' }}>ENDPOINT</label>
-              <input 
-                type="text" 
-                className="input-field" 
+              <input
+                type="text"
+                className="input-field"
                 style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem' }}
-                value={apiEndpoint} 
-                onChange={(e) => setApiEndpoint(e.target.value)} 
+                value={apiEndpoint}
+                onChange={(e) => setApiEndpoint(e.target.value)}
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <label style={{ fontSize: '0.65rem' }}>API BEARER KEY</label>
-              <input 
-                type="password" 
-                className="input-field" 
+              <input
+                type="password"
+                className="input-field"
                 style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem' }}
-                value={apiKey} 
-                onChange={(e) => setApiKey(e.target.value)} 
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
               />
             </div>
           </div>
@@ -248,7 +378,7 @@ export default function App() {
 
       {/* MAIN CONTENT AREA */}
       <main className="main-content">
-        
+
         {/* Error message banner */}
         {errorMsg && (
           <div className="auth-banner" style={{ borderColor: 'var(--accent-error)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
@@ -259,7 +389,163 @@ export default function App() {
           </div>
         )}
 
-        {/* 1. CREWS EXECUTER TAB */}
+
+        {/* 1. ZIP UPLOAD TAB */}
+        {activeTab === 'upload' && (
+          <div>
+            <div className="content-header">
+              <div>
+                <h2 className="header-title">Register Crew</h2>
+                <p className="header-subtitle">Upload a *.zip packed CrewAI application to register it automatically.</p>
+              </div>
+            </div>
+
+            <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+              <div className="panel">
+                <h3 className="panel-title">
+                  <UploadCloud size={20} style={{ color: 'var(--accent-primary)' }} />
+                  Upload Crew Package (.zip)
+                </h3>
+
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  CrewAI 프로젝트 루트 폴더 혹은 내부 소스파일들을 `.zip` 압축파일로 선택하여 업로드해 주세요.
+                  서버에서 압축 해제 후 `main.py` 파일의 실행 파라미터(`inputs`) 설정값을 자동으로 파싱 및 등록 처리합니다.
+                </p>
+
+                <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
+                  <div
+                    style={{
+                      border: '2px dashed var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '3rem 2rem',
+                      textAlign: 'center',
+                      backgroundColor: 'var(--bg-primary)',
+                      cursor: 'pointer',
+                      transition: 'var(--transition-smooth)'
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        setUploadFile(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onClick={() => document.getElementById('zip-file-input').click()}
+                  >
+                    <UploadCloud size={48} style={{ color: uploadFile ? 'var(--accent-success)' : 'var(--text-muted)', margin: '0 auto 1rem' }} />
+                    <input
+                      type="file"
+                      id="zip-file-input"
+                      accept=".zip"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setUploadFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+                    {uploadFile ? (
+                      <div>
+                        <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{uploadFile.name}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                          {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ fontWeight: 500 }}>Drag and drop your ZIP file here, or click to browse</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Only .zip archives are supported</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={!uploadFile || isUploading}
+                    style={{ height: '46px' }}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite' }} />
+                        <span>Registering & Parsing Crew... {uploadProgress}%</span>
+                      </>
+                    ) : (
+                      <span>Register Crew Application</span>
+                    )}
+                  </button>
+
+                  {isUploading && (
+                    <div style={{ marginTop: '1rem' }}>
+                      <div className="progress-container">
+                        <div className="progress-bar" style={{ width: `${uploadProgress}%` }}></div>
+                      </div>
+                      <div className="progress-text">
+                        <span>Uploading ZIP archive...</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                    </div>
+                  )}
+                </form>
+
+                {/* 등록 성공 상세 정보 모달 피드백 */}
+                {uploadSuccess && registeredCrewInfo && (
+                  <div
+                    style={{
+                      marginTop: '2rem',
+                      padding: '1.5rem',
+                      backgroundColor: 'rgba(16, 185, 129, 0.04)',
+                      border: '1px solid var(--accent-success)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-success)', fontWeight: 600 }}>
+                      <FileCheck size={18} />
+                      <span>Registration Completed!</span>
+                    </div>
+
+                    <div style={{ fontSize: '0.85rem' }}>
+                      <p><strong>Crew Name:</strong> {registeredCrewInfo.display_name}</p>
+                      <p style={{ marginTop: '0.25rem' }}><strong>Crew ID:</strong> <code style={{ fontFamily: 'var(--font-mono)' }}>{registeredCrewInfo.crew_id}</code></p>
+
+                      <div style={{ marginTop: '1rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Parsed default inputs from main.py:</span>
+                        <pre className="code-block" style={{ marginTop: '0.25rem', backgroundColor: 'var(--bg-primary)' }}>
+                          {JSON.stringify(registeredCrewInfo.default_inputs, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <button
+                      className="btn btn-secondary"
+                      style={{ alignSelf: 'start', borderColor: 'var(--accent-success)', color: 'var(--accent-success)' }}
+                      onClick={() => {
+                        // 새로 업로드한 Crew를 자동 선택하고 Executer 탭으로 이동
+                        const newlyRegistered = crews.find(c => c.crew_id === registeredCrewInfo.crew_id);
+                        if (newlyRegistered) {
+                          setSelectedCrew(newlyRegistered);
+                        } else {
+                          loadCrews().then(() => {
+                            const refetched = crews.find(c => c.crew_id === registeredCrewInfo.crew_id);
+                            if (refetched) setSelectedCrew(refetched);
+                          });
+                        }
+                        setActiveTab('crews');
+                      }}
+                    >
+                      Go to Executer & Run
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. CREWS EXECUTER TAB */}
         {activeTab === 'crews' && (
           <div>
             <div className="content-header">
@@ -276,16 +562,16 @@ export default function App() {
                 {crews.length === 0 ? (
                   <div className="card" style={{ cursor: 'default' }}>
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>
-                      No crews found. Add directories under crews/ folder.
+                      No crews found. Register a new crew using the upload menu!
                     </p>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {crews.map((crew) => (
-                      <div 
-                        key={crew.crew_id} 
+                      <div
+                        key={crew.crew_id}
                         className={`card ${selectedCrew?.crew_id === crew.crew_id ? 'active' : ''}`}
-                        style={{ 
+                        style={{
                           borderColor: selectedCrew?.crew_id === crew.crew_id ? 'var(--accent-primary)' : 'var(--border-color)',
                           backgroundColor: selectedCrew?.crew_id === crew.crew_id ? 'var(--bg-tertiary)' : 'var(--bg-secondary)'
                         }}
@@ -318,8 +604,8 @@ export default function App() {
                   </h3>
 
                   <div className="form-group">
-                    <label className="form-label">INPUT VARIABLES (JSON)</label>
-                    <textarea 
+                    <label className="form-label">INPUT VARIABLES (JSON - Parsed from main.py)</label>
+                    <textarea
                       className="textarea-field"
                       value={inputsJson}
                       onChange={(e) => setInputsJson(e.target.value)}
@@ -327,8 +613,8 @@ export default function App() {
                     />
                   </div>
 
-                  <button 
-                    className="btn btn-primary" 
+                  <button
+                    className="btn btn-primary"
                     onClick={handleKickoff}
                     disabled={isExecuting}
                     style={{ width: '100%', height: '46px' }}
@@ -351,7 +637,9 @@ export default function App() {
           </div>
         )}
 
-        {/* 2. HISTORY & DETAILED VIEW TAB */}
+
+
+        {/* 3. HISTORY & DETAILED VIEW TAB */}
         {activeTab === 'history' && (
           <div>
             <div className="content-header">
@@ -365,16 +653,16 @@ export default function App() {
               {/* Left Column: Tasks history selection */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Execution Records</h3>
-                
+
                 {pollingTaskId && (
-                  <div 
+                  <div
                     className="card monitoring-card running"
-                    style={{ 
+                    style={{
                       borderColor: 'var(--accent-primary)',
                       backgroundColor: 'rgba(59, 130, 246, 0.03)'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifySpace: 'between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Loader2 size={14} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--accent-primary)' }} />
                         Active Polling...
@@ -392,10 +680,10 @@ export default function App() {
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No task logs available.</p>
                   ) : (
                     tasks.map((task) => (
-                      <div 
-                        key={task.id} 
+                      <div
+                        key={task.id}
                         className={`card ${selectedTask?.id === task.id ? 'active' : ''}`}
-                        style={{ 
+                        style={{
                           padding: '1rem',
                           borderColor: selectedTask?.id === task.id ? 'var(--accent-primary)' : 'var(--border-color)',
                           backgroundColor: selectedTask?.id === task.id ? 'var(--bg-tertiary)' : 'var(--bg-secondary)'
@@ -535,6 +823,48 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* OVERWRITE CONFIRMATION MODAL */}
+      {showConfirmModal && pendingFile && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header" style={{ color: 'var(--accent-warning)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Settings size={20} />
+              <span>중복된 에이전트 경고</span>
+            </div>
+            <div className="modal-body">
+              <p>
+                동일한 ID인 <strong>{sanitizeCrewId(pendingFile.name.replace(/\.zip$/i, ''))}</strong> 에이전트가 서버에 이미 존재합니다.
+              </p>
+              <p style={{ marginTop: '0.65rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                기존 소스코드를 삭제하고 덮어쓸까요?
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setPendingFile(null);
+                  setUploadFile(null);
+                }}
+              >
+                아니오, 취소
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ backgroundColor: 'var(--accent-warning)', color: '#000' }}
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  performUpload(pendingFile, true);
+                }}
+              >
+                예, 덮어쓰기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
