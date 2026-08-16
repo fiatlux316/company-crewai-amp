@@ -13,7 +13,8 @@ import {
   Database,
   Code,
   UploadCloud,
-  FileCheck
+  FileCheck,
+  Trash2
 } from 'lucide-react';
 
 export default function App() {
@@ -46,6 +47,11 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
+
+  // 삭제 관련 상태 추가
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [crewToDelete, setCrewToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const sanitizeCrewId = (name) => {
     return name.replace(/-/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -282,6 +288,29 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', file);
     xhr.send(formData);
+  };
+
+  // 에이전트 삭제 요청 수행
+  const handleDeleteCrew = async () => {
+    if (!crewToDelete) return;
+    setErrorMsg('');
+    setIsDeleting(true);
+
+    try {
+      await fetchWithAuth(`/api/v1/crews/${crewToDelete.crew_id}`, {
+        method: 'DELETE',
+      });
+      
+      // 상태 초기화 및 목록 갱신
+      setShowDeleteModal(false);
+      setCrewToDelete(null);
+      await loadCrews();
+    } catch (e) {
+      console.error(e);
+      setErrorMsg(`Failed to delete crew: ${e.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getStatusBadgeClass = (status) => {
@@ -613,24 +642,46 @@ export default function App() {
                     />
                   </div>
 
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleKickoff}
-                    disabled={isExecuting}
-                    style={{ width: '100%', height: '46px' }}
-                  >
-                    {isExecuting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite' }} />
-                        <span>Kicking off Agent Crew...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play size={16} />
-                        <span>Kickoff Agent Crew</span>
-                      </>
-                    )}
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleKickoff}
+                      disabled={isExecuting}
+                      style={{ flex: 1, height: '46px' }}
+                    >
+                      {isExecuting ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite' }} />
+                          <span>Kicking off Agent Crew...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={16} />
+                          <span>Kickoff Agent Crew</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setCrewToDelete(selectedCrew);
+                        setShowDeleteModal(true);
+                      }}
+                      style={{ 
+                        color: 'var(--accent-error)', 
+                        borderColor: 'rgba(239, 68, 68, 0.3)', 
+                        width: '46px', 
+                        height: '46px',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Delete Crew"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -860,6 +911,46 @@ export default function App() {
                 }}
               >
                 예, 덮어쓰기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {showDeleteModal && crewToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header" style={{ color: 'var(--accent-error)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Trash2 size={20} />
+              <span>에이전트 삭제 경고</span>
+            </div>
+            <div className="modal-body">
+              <p>
+                선택하신 <strong>{crewToDelete.display_name}</strong> 에이전트를 서버에서 완전히 삭제하시겠습니까?
+              </p>
+              <p style={{ marginTop: '0.65rem', fontWeight: 600, color: 'var(--accent-error)' }}>
+                진짜 삭제하시겠습니까? (이 작업은 되돌릴 수 없으며 소스 폴더에서도 영구 삭제됩니다)
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setCrewToDelete(null);
+                }}
+                disabled={isDeleting}
+              >
+                아니오, 취소
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ backgroundColor: 'var(--accent-error)', color: '#fff' }}
+                onClick={handleDeleteCrew}
+                disabled={isDeleting}
+              >
+                {isDeleting ? '삭제 중...' : '예, 삭제합니다'}
               </button>
             </div>
           </div>

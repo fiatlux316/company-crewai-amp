@@ -1,6 +1,0 @@
-{
-  "time_range": "여기에 time_range 값을 입력하세요",
-  "datadog_query": "여기에 datadog_query 값을 입력하세요",
-  "recipient_email": "여기에 recipient_email 값을 입력하세요",
-  "limit": "여기에 limit 값을 입력하세요"
-}

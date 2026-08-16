@@ -9,9 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from gateway.database import SessionLocal, TaskRecord
 from gateway.celery_app import execute_crew_kickoff, get_crew_info
-from gateway.upload_handler import process_crew_zip, find_main_py, extract_default_inputs
+from gateway.deploy_api import router as deploy_router
+from gateway.upload_handler import find_main_py, extract_default_inputs
+from gateway.upload_handler import process_crew_zip
 
 app = FastAPI(title="Company Private CrewAI AMP", version="1.0.0")
+app.include_router(deploy_router)
 
 # CORS 미들웨어 등록
 app.add_middleware(
@@ -177,7 +180,42 @@ def get_task_status(task_id: str, token: str = Depends(verify_api_key)):
         "updated_at": task.updated_at
     }
 
-# 6. React SPA 정적 파일 서빙 및 폴백 라우팅
+# 6. Crew 삭제 API (소스 디렉토리 영구 제거)
+@app.delete("/api/v1/crews/{crew_id}", status_code=200)
+def delete_crew(
+    crew_id: str,
+    token: str = Depends(verify_api_key)
+):
+    import shutil
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    crews_dir = os.path.join(base_dir, "crews")
+    
+    if not os.path.exists(crews_dir):
+        raise HTTPException(status_code=404, detail="crews directory not found.")
+        
+    matched_folder = None
+    for item in os.listdir(crews_dir):
+        if os.path.isdir(os.path.join(crews_dir, item)) and not item.startswith((".", "_")):
+            if item == crew_id or item.replace("_crew", "") == crew_id or crew_id.replace("_crew", "") == item:
+                matched_folder = item
+                break
+                
+    if not matched_folder:
+        raise HTTPException(status_code=404, detail=f"Crew '{crew_id}' not found under crews/ folder.")
+        
+    target_path = os.path.join(crews_dir, matched_folder)
+    try:
+        shutil.rmtree(target_path)
+        return {
+            "message": f"Crew '{crew_id}' has been deleted successfully."
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete crew folder on host: {str(e)}"
+        )
+
+# 7. React SPA 정적 파일 서빙 및 폴백 라우팅
 dist_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard/dist"))
 if os.path.exists(dist_dir):
     app.mount("/assets", StaticFiles(directory=os.path.join(dist_dir, "assets")), name="assets")
