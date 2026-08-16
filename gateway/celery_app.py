@@ -59,11 +59,13 @@ def execute_crew_kickoff(task_id: str, crew_id: str, inputs: dict):
         module = importlib.import_module(crew_info["module"])
         
         # 3. 클래스 탐색 (클래스 데코레이터 상속 등으로 이름이 다를 수 있어 인스펙션 적용)
+        # 외부 임포트된 클래스(예: crewai.Crew)가 오매칭되는 것을 방지하기 위해 해당 모듈 내 선언된 클래스만 필터링
         crew_class = None
         for name, obj in inspect.getmembers(module, inspect.isclass):
-            if name.endswith("Crew") or name.lower() == crew_info["crew_id"].lower() or name == crew_info["class"]:
-                crew_class = obj
-                break
+            if obj.__module__ == module.__name__:
+                if name.endswith("Crew") or name.lower() == crew_info["crew_id"].lower() or name == crew_info["class"]:
+                    crew_class = obj
+                    break
                 
         if not crew_class:
             crew_class = getattr(module, crew_info["class"])

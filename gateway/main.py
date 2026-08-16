@@ -180,7 +180,30 @@ def get_task_status(task_id: str, token: str = Depends(verify_api_key)):
         "updated_at": task.updated_at
     }
 
-# 6. Crew 삭제 API (소스 디렉토리 영구 제거)
+# 6. 태스크 실행 이력 삭제 API (DB 로그 제거)
+@app.delete("/api/v1/tasks/{task_id}", status_code=200)
+def delete_task(task_id: str, token: str = Depends(verify_api_key)):
+    db = SessionLocal()
+    task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
+    if not task:
+        db.close()
+        raise HTTPException(status_code=404, detail="Task record not found.")
+        
+    try:
+        db.delete(task)
+        db.commit()
+        db.close()
+        return {
+            "message": f"Task record '{task_id}' has been deleted successfully."
+        }
+    except Exception as e:
+        db.close()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete task record: {str(e)}"
+        )
+
+# 7. Crew 삭제 API (소스 디렉토리 영구 제거)
 @app.delete("/api/v1/crews/{crew_id}", status_code=200)
 def delete_crew(
     crew_id: str,

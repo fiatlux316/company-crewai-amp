@@ -53,6 +53,11 @@ export default function App() {
   const [crewToDelete, setCrewToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // 실행 이력 삭제 관련 상태 추가
+  const [showDeleteTaskModal, setShowDeleteTaskModal] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+
   const sanitizeCrewId = (name) => {
     return name.replace(/-/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   };
@@ -310,6 +315,32 @@ export default function App() {
       setErrorMsg(`Failed to delete crew: ${e.message}`);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // 태스크 실행 이력 삭제 요청 수행
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return;
+    setErrorMsg('');
+    setIsDeletingTask(true);
+
+    try {
+      await fetchWithAuth(`/api/v1/tasks/${taskToDelete.id}`, {
+        method: 'DELETE',
+      });
+      
+      // 상태 초기화 및 목록 갱신
+      setShowDeleteTaskModal(false);
+      if (selectedTask?.id === taskToDelete.id) {
+        setSelectedTask(null);
+      }
+      setTaskToDelete(null);
+      await loadTasks();
+    } catch (e) {
+      console.error(e);
+      setErrorMsg(`Failed to delete task record: ${e.message}`);
+    } finally {
+      setIsDeletingTask(false);
     }
   };
 
@@ -700,7 +731,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="execution-container" style={{ gridTemplateColumns: '380px 1fr' }}>
+            <div className="execution-container" style={{ gridTemplateColumns: '380px 1fr', alignItems: 'flex-start' }}>
               {/* Left Column: Tasks history selection */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Execution Records</h3>
@@ -737,7 +768,15 @@ export default function App() {
                         style={{
                           padding: '1rem',
                           borderColor: selectedTask?.id === task.id ? 'var(--accent-primary)' : 'var(--border-color)',
-                          backgroundColor: selectedTask?.id === task.id ? 'var(--bg-tertiary)' : 'var(--bg-secondary)'
+                          backgroundColor: selectedTask?.id === task.id ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                          // 카드 크기(높이) 고정 및 레이아웃 유지 설정
+                          height: '82px',
+                          minHeight: '82px',
+                          flexShrink: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          position: 'relative'
                         }}
                         onClick={() => setSelectedTask(task)}
                       >
@@ -745,9 +784,34 @@ export default function App() {
                           <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                             {task.crew_id}
                           </span>
-                          <span className={`card-badge ${getStatusBadgeClass(task.status)}`}>
-                            {task.status}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            {/* 선택된 카드의 우측 상태 배지 왼쪽에 컴팩트 삭제 버튼 배치 */}
+                            {selectedTask?.id === task.id && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation(); // 카드 선택 클릭 방지
+                                  setTaskToDelete(task);
+                                  setShowDeleteTaskModal(true);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--accent-error)',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  transition: 'var(--transition-smooth)'
+                                }}
+                                title="Delete task record"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                            <span className={`card-badge ${getStatusBadgeClass(task.status)}`}>
+                              {task.status}
+                            </span>
+                          </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
                           <span style={{ fontFamily: 'var(--font-mono)' }}>{task.id.substring(0, 8)}...</span>
@@ -951,6 +1015,46 @@ export default function App() {
                 disabled={isDeleting}
               >
                 {isDeleting ? '삭제 중...' : '예, 삭제합니다'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE TASK RECORD CONFIRMATION MODAL */}
+      {showDeleteTaskModal && taskToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header" style={{ color: 'var(--accent-error)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Trash2 size={20} />
+              <span>실행 이력 삭제</span>
+            </div>
+            <div className="modal-body">
+              <p>
+                ID가 <strong>{taskToDelete.id.substring(0, 8)}...</strong>인 <strong>{taskToDelete.crew_id}</strong> 실행 이력을 삭제하시겠습니까?
+              </p>
+              <p style={{ marginTop: '0.65rem', fontWeight: 600, color: 'var(--accent-error)' }}>
+                진짜 삭제하시겠습니까? (이 작업은 되돌릴 수 없으며 데이터베이스에서 영구 제거됩니다)
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowDeleteTaskModal(false);
+                  setTaskToDelete(null);
+                }}
+                disabled={isDeletingTask}
+              >
+                아니오, 취소
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ backgroundColor: 'var(--accent-error)', color: '#fff' }}
+                onClick={handleDeleteTask}
+                disabled={isDeletingTask}
+              >
+                {isDeletingTask ? '삭제 중...' : '예, 삭제합니다'}
               </button>
             </div>
           </div>
