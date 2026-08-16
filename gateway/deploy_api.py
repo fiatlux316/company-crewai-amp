@@ -9,6 +9,9 @@ security = HTTPBearer()
 API_KEY = os.getenv("CREWAI_API_KEY", "super-secret-company-key")
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security)):
+
+    print(f'credentials.credentials : {credentials.credentials}')
+    print(f'API_KEY : {API_KEY}')
     if credentials.credentials != API_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

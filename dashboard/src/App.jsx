@@ -372,25 +372,25 @@ export default function App() {
           </div>
         </div>
 
-        <li
-          className={`nav-item ${activeTab === 'upload' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('upload');
-            setUploadSuccess(false);
-            setRegisteredCrewInfo(null);
-          }}
-        >
-          <UploadCloud size={18} />
-          <span>Register Crew</span>
-        </li>
-
         <ul className="nav-menu">
+          <li
+            className={`nav-item ${activeTab === 'upload' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('upload');
+              setUploadSuccess(false);
+              setRegisteredCrewInfo(null);
+            }}
+          >
+            <UploadCloud size={18} />
+            <span>Register Crew</span>
+          </li>
+
           <li
             className={`nav-item ${activeTab === 'crews' ? 'active' : ''}`}
             onClick={() => setActiveTab('crews')}
           >
             <Play size={18} />
-            <span>Crews Executer</span>
+            <span>Crews Executor</span>
           </li>
 
           <li
@@ -583,7 +583,7 @@ export default function App() {
                       className="btn btn-secondary"
                       style={{ alignSelf: 'start', borderColor: 'var(--accent-success)', color: 'var(--accent-success)' }}
                       onClick={() => {
-                        // 새로 업로드한 Crew를 자동 선택하고 Executer 탭으로 이동
+                        // 새로 업로드한 Crew를 자동 선택하고 Executor 탭으로 이동
                         const newlyRegistered = crews.find(c => c.crew_id === registeredCrewInfo.crew_id);
                         if (newlyRegistered) {
                           setSelectedCrew(newlyRegistered);
@@ -596,7 +596,7 @@ export default function App() {
                         setActiveTab('crews');
                       }}
                     >
-                      Go to Executer & Run
+                      Go to Executor & Run
                     </button>
                   </div>
                 )}
@@ -605,12 +605,12 @@ export default function App() {
           </div>
         )}
 
-        {/* 2. CREWS EXECUTER TAB */}
+        {/* 2. CREWS EXECUTOR TAB */}
         {activeTab === 'crews' && (
           <div>
             <div className="content-header">
               <div>
-                <h2 className="header-title">Crews Executer</h2>
+                <h2 className="header-title">Crews Executor</h2>
                 <p className="header-subtitle">Scan & execute agent workflows in the crews/ directory dynamically.</p>
               </div>
             </div>
