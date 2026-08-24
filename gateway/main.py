@@ -148,13 +148,28 @@ def kickoff_crew(
     if not crew_info:
         raise HTTPException(status_code=404, detail=f"Crew '{crew_id}' not found under crews/ folder.")
 
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    default_inputs_path = os.path.join(base_dir, "crews", crew_info["crew_id"], "default_inputs.json")
+    default_inputs = {}
+    if os.path.isfile(default_inputs_path):
+        try:
+            with open(default_inputs_path, 'r', encoding='utf-8') as f:
+                loaded_inputs = json.load(f)
+                if isinstance(loaded_inputs, dict):
+                    default_inputs = loaded_inputs
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # 기본값을 먼저 넣고 화면에서 전달된 값으로 덮어써 화면 입력을 우선한다.
+    effective_inputs = {**default_inputs, **payload.inputs}
+
     db = SessionLocal()
-    new_task = TaskRecord(crew_id=crew_info["crew_id"], inputs=payload.inputs)
+    new_task = TaskRecord(crew_id=crew_info["crew_id"], inputs=effective_inputs)
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
     
-    execute_crew_kickoff.delay(new_task.id, crew_info["crew_id"], payload.inputs)
+    execute_crew_kickoff.delay(new_task.id, crew_info["crew_id"], effective_inputs)
     db.close()
     
     return {

@@ -34,7 +34,7 @@ class SendOutLookMailInput(BaseModel):
     """Input schema for SendOutLookMail."""
     subject: str = Field(..., description="메일로 발송할 보고서 제목")
     body: str = Field(..., description="마크다운 형태로 작성된 보고서 원문")
-    recipient_email: str = Field(..., description="메일을 수신할 사람의 이메일(recipient_email) 주소")
+    recipient_email: str = Field(..., description="메일을 수신할 사람의 이메일 주소")
     
 
 class SendOutLookMail(BaseTool):

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Play,
   History,
@@ -392,7 +394,8 @@ export default function App() {
 
   const formatDate = (isoString) => {
     if (!isoString) return '-';
-    const date = new Date(isoString);
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(isoString);
+    const date = new Date(hasTimezone ? isoString : `${isoString}Z`);
     return date.toLocaleString('ko-KR', {
       timeZone: 'Asia/Seoul',
     });
@@ -938,8 +941,10 @@ export default function App() {
                         <span className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                           <CheckCircle2 size={14} style={{ color: 'var(--accent-success)' }} /> FINAL MARKDOWN OUTPUT
                         </span>
-                        <div className="result-raw">
-                          {selectedTask.result.raw}
+                        <div className="result-raw markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {selectedTask.result.raw}
+                          </ReactMarkdown>
                         </div>
                       </div>
                     )}
@@ -951,12 +956,16 @@ export default function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
                           {selectedTask.result.tasks_output.map((out, idx) => (
                             <div key={idx} className="card" style={{ cursor: 'default', padding: '1.25rem', backgroundColor: 'var(--bg-primary)' }}>
-                              <h5 style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-primary)' }}>
+                              <div className="markdown-body task-output-description" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--accent-primary)' }}>
                                 <span style={{ width: '18px', height: '18px', display: 'flex', alignItems: 'center', justify: 'center', borderRadius: '50%', backgroundColor: 'var(--bg-active)', fontSize: '0.75rem', color: 'var(--text-primary)' }}>{idx + 1}</span>
-                                {out.description}
-                              </h5>
-                              <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.5rem', lineHeight: '1.5' }}>
-                                {out.raw}
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {out.description || ''}
+                                </ReactMarkdown>
+                              </div>
+                              <div className="markdown-body" style={{ fontSize: '0.85rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {out.raw || ''}
+                                </ReactMarkdown>
                               </div>
                             </div>
                           ))}
