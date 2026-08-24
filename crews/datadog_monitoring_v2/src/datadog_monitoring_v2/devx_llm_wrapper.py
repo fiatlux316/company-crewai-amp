@@ -6,6 +6,7 @@ from pydantic import Field
 from crewai.llms.base_llm import BaseLLM
 from crewai.utilities.types import LLMMessage
 from crewai.llms.providers.bedrock.completion import BedrockCompletion
+from crewai.llms.providers.gemini.completion import GeminiCompletion
 
 # .env 파일 로드
 load_dotenv()
@@ -102,6 +103,12 @@ elif os.getenv("LLM_TYPE") == "aws-bedrock":
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
         #additional_model_request_fields={"inferenceConfig": {"topK": int(os.getenv("BEDROCK_TOP_K", "1"))}}
+    )
+elif os.getenv("LLM_TYPE") == "gemini":
+    print("Gemini 호출 : " + os.getenv("GEMINI_MODEL"))
+    llm = GeminiCompletion(
+        model=os.getenv("GEMINI_MODEL"),
+        api_key=os.getenv("GEMINI_API_KEY"),
     )
 else:
     raise ValueError("LLM_TYPE을 설정해주세요.")

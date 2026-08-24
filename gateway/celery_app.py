@@ -1,6 +1,7 @@
 import os
 import importlib
 import inspect
+from dotenv import load_dotenv
 from celery import Celery
 from gateway.database import SessionLocal, TaskRecord
 
@@ -54,6 +55,12 @@ def execute_crew_kickoff(task_id: str, crew_id: str, inputs: dict):
         crew_info = get_crew_info(crew_id)
         if not crew_info:
             raise ValueError(f"Crew '{crew_id}' is not found under crews/ folder.")
+
+        # 1-1. 해당 Crew 폴더의 .env 파일 강제 로드 (override=True)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        crew_env_path = os.path.join(base_dir, "crews", crew_info["crew_id"], ".env")
+        if os.path.exists(crew_env_path):
+            load_dotenv(dotenv_path=crew_env_path, override=True)
 
         # 2. 동적 임포트 (Dynamic Import)
         module = importlib.import_module(crew_info["module"])
