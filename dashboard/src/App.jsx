@@ -34,6 +34,7 @@ export default function App() {
 
   const [selectedTask, setSelectedTask] = useState(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isSavingInputs, setIsSavingInputs] = useState(false);
   const [pollingTaskId, setPollingTaskId] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -212,6 +213,41 @@ export default function App() {
     }
   };
 
+  const handleSaveDefaultInputs = async () => {
+    if (!selectedCrew) return;
+    setErrorMsg('');
+
+    let parsedInputs;
+    try {
+      parsedInputs = JSON.parse(inputsJson);
+    } catch (e) {
+      setErrorMsg('Inputs must be a valid JSON format.');
+      return;
+    }
+
+    if (!parsedInputs || Array.isArray(parsedInputs) || typeof parsedInputs !== 'object') {
+      setErrorMsg('Inputs must be a JSON object.');
+      return;
+    }
+
+    setIsSavingInputs(true);
+    try {
+      const result = await fetchWithAuth(`/api/v1/crews/${selectedCrew.crew_id}/default-inputs`, {
+        method: 'PUT',
+        body: JSON.stringify({ inputs: parsedInputs }),
+      });
+      const updatedCrew = { ...selectedCrew, default_inputs: result.default_inputs };
+      setSelectedCrew(updatedCrew);
+      setCrews((currentCrews) => currentCrews.map((crew) => (
+        crew.crew_id === updatedCrew.crew_id ? updatedCrew : crew
+      )));
+    } catch (e) {
+      setErrorMsg(`Failed to save default inputs: ${e.message}`);
+    } finally {
+      setIsSavingInputs(false);
+    }
+  };
+
   // 8. ZIP 파일 업로드 및 에이전트 등록 요청 (중복 검사 및 진행률 추적 XHR 적용)
   const handleUploadSubmit = (e) => {
     e.preventDefault();
@@ -357,7 +393,9 @@ export default function App() {
   const formatDate = (isoString) => {
     if (!isoString) return '-';
     const date = new Date(isoString);
-    return date.toLocaleString();
+    return date.toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+    });
   };
 
   return (
@@ -630,7 +668,7 @@ export default function App() {
                     {crews.map((crew) => (
                       <div
                         key={crew.crew_id}
-                        className={`card ${selectedCrew?.crew_id === crew.crew_id ? 'active' : ''}`}
+                        className={`card crew-card ${selectedCrew?.crew_id === crew.crew_id ? 'active' : ''}`}
                         style={{
                           borderColor: selectedCrew?.crew_id === crew.crew_id ? 'var(--accent-primary)' : 'var(--border-color)',
                           backgroundColor: selectedCrew?.crew_id === crew.crew_id ? 'var(--bg-tertiary)' : 'var(--bg-secondary)'
@@ -647,7 +685,28 @@ export default function App() {
                               id: {crew.crew_id}
                             </span>
                           </div>
-                          <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCrewToDelete(crew);
+                                setShowDeleteModal(true);
+                              }}
+                              style={{
+                                color: 'var(--accent-error)',
+                                borderColor: 'rgba(239, 68, 68, 0.3)',
+                                width: '34px',
+                                height: '34px',
+                                padding: 0
+                              }}
+                              title="Delete Crew"
+                              aria-label={`Delete ${crew.display_name}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                            <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -694,23 +753,14 @@ export default function App() {
                     </button>
                     <button
                       className="btn btn-secondary"
-                      onClick={() => {
-                        setCrewToDelete(selectedCrew);
-                        setShowDeleteModal(true);
-                      }}
+                      onClick={handleSaveDefaultInputs}
+                      disabled={isSavingInputs}
                       style={{ 
-                        color: 'var(--accent-error)', 
-                        borderColor: 'rgba(239, 68, 68, 0.3)', 
-                        width: '46px', 
                         height: '46px',
-                        padding: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
+                        minWidth: '120px'
                       }}
-                      title="Delete Crew"
                     >
-                      <Trash2 size={18} />
+                      {isSavingInputs ? 'Saving...' : 'Save Defaults'}
                     </button>
                   </div>
                 </div>

@@ -3,5 +3,6 @@
   "time_range": "last 1 hour",
   "datadog_query": "service:erody-bo-backend-20 @http.status_code:[400 TO 599]",
   "output_path": "./output/output.md",
+  "search_option": "apm",
   "limit": "5"
 }

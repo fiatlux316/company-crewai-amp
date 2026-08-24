@@ -4,17 +4,19 @@ services:
   # API 게이트웨이
   gateway:
     build: .
-    command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/gateway --reload-dir /app/crews
     ports:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:////app/data/crew_amp.db
       - CREWAI_API_KEY=super-secret-company-key
+      - WATCHFILES_FORCE_POLLING=true
       # 로컬 테스트용이므로 실제 OpenAI API 키는 주입하지 않음 (Mock Crew 실행 예정)
       - OPENAI_API_KEY=mock-key
     volumes:
       - shared-db:/app/data
+      - ./gateway:/app/gateway
       - ./crews:/app/crews
     depends_on:
       - redis
@@ -33,11 +35,30 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:////app/data/crew_amp.db
       - OPENAI_API_KEY=mock-key
+      - WATCHFILES_FORCE_POLLING=true
     volumes:
       - shared-db:/app/data
+      - ./gateway:/app/gateway
       - ./crews:/app/crews
     depends_on:
       - redis
 
+  # React 개발 서버
+  dashboard:
+    image: node:20-alpine
+    working_dir: /app/dashboard
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_PROXY_TARGET=http://gateway:8000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./dashboard:/app/dashboard
+      - dashboard-node-modules:/app/dashboard/node_modules
+    depends_on:
+      - gateway
+
 volumes:
   shared-db:
+  dashboard-node-modules:

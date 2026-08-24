@@ -39,6 +39,9 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security
 class KickoffRequest(BaseModel):
     inputs: dict
 
+class DefaultInputsRequest(BaseModel):
+    inputs: dict
+
 # 1. crews 폴더 동적 스캔 및 default_inputs 포함 엔드포인트
 @app.get("/api/v1/crews")
 def list_crews(token: str = Depends(verify_api_key)):
@@ -160,7 +163,34 @@ def kickoff_crew(
         "message": "Crew kickoff initiated. Check status using the task endpoint."
     }
 
-# 5. 태스크 상세 결과 및 상태 조회
+# 5. Crew 기본 입력값 저장 API
+@app.put("/api/v1/crews/{crew_id}/default-inputs", status_code=200)
+def update_default_inputs(
+    crew_id: str,
+    payload: DefaultInputsRequest,
+    token: str = Depends(verify_api_key)
+):
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    crew_path = os.path.join(base_dir, "crews", crew_id)
+
+    if not os.path.isdir(crew_path) or crew_id.startswith((".", "_")):
+        raise HTTPException(status_code=404, detail=f"Crew '{crew_id}' not found under crews/ folder.")
+
+    inputs_path = os.path.join(crew_path, "default_inputs.json")
+    try:
+        with open(inputs_path, 'w', encoding='utf-8') as f:
+            json.dump(payload.inputs, f, ensure_ascii=False, indent=2)
+        return {
+            "message": f"Default inputs for crew '{crew_id}' have been saved successfully.",
+            "default_inputs": payload.inputs
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save default inputs: {str(e)}"
+        )
+
+# 6. 태스크 상세 결과 및 상태 조회
 @app.get("/api/v1/tasks/{task_id}")
 def get_task_status(task_id: str, token: str = Depends(verify_api_key)):
     db = SessionLocal()
