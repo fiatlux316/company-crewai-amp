@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import sys
 from datadog_monitoring_v2.crew import DatadogMonitoringV2
 
@@ -9,10 +10,9 @@ def run():
     inputs = {
         "output_path": "./output/output.md",
         "time_range": "last 1 hours",
-        "datadog_query": "service:erody-bo-backend-20 status:error",
-        "seach_option": "logs",
-        "limit": "3",
-        "recipient_email": "jck@shinsegae.com"
+        'datadog_query': 'service:erody-bo-backend-20 @http.status_code:[400 TO 599]',
+        "search_option": "logs",
+        "limit": "10",
     }
     try:
         DatadogMonitoringV2().crew().kickoff(inputs=inputs)

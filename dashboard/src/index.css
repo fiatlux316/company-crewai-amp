@@ -175,6 +175,57 @@ body {
   margin-top: 0.25rem;
 }
 
+.schedule-panel {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.schedule-heading,
+.schedule-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.schedule-toggle,
+.weekday-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.schedule-fields .form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.weekday-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  min-height: 38px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .schedule-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Configuration & API Key Input */
 .auth-banner {
   background-color: var(--bg-secondary);

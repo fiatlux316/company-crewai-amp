@@ -85,6 +85,15 @@ def process_crew_zip(zip_file_path, filename, overwrite=False):
             default_inputs = extract_default_inputs(main_py)
             
         # 4. 대상 crews/ 디렉토리에 복사
+        existing_schedule = None
+        existing_schedule_path = os.path.join(target_path, "schedule.json")
+        if overwrite and os.path.isfile(existing_schedule_path):
+            try:
+                with open(existing_schedule_path, 'r', encoding='utf-8') as f:
+                    existing_schedule = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                print(f"Failed to preserve existing schedule for {crew_id}: {e}")
+
         if os.path.exists(target_path):
             shutil.rmtree(target_path)
             
@@ -94,6 +103,11 @@ def process_crew_zip(zip_file_path, filename, overwrite=False):
         inputs_path = os.path.join(target_path, "default_inputs.json")
         with open(inputs_path, 'w', encoding='utf-8') as f:
             json.dump(default_inputs, f, ensure_ascii=False, indent=2)
+
+        if existing_schedule is not None:
+            schedule_path = os.path.join(target_path, "schedule.json")
+            with open(schedule_path, 'w', encoding='utf-8') as f:
+                json.dump(existing_schedule, f, ensure_ascii=False, indent=2)
             
         return {
             "crew_id": crew_id,

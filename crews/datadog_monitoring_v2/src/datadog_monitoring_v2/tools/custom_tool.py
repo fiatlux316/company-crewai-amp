@@ -1,5 +1,6 @@
 from crewai.tools import BaseTool
-from typing import Type
+import os
+from typing import Optional, Type
 from pydantic import BaseModel, Field
 
 from .datadog_api import datadog_apm_search, datadog_logs_search
@@ -34,15 +35,17 @@ class SendOutLookMailInput(BaseModel):
     """Input schema for SendOutLookMail."""
     subject: str = Field(..., description="메일로 발송할 보고서 제목")
     body: str = Field(..., description="마크다운 형태로 작성된 보고서 원문")
-    recipient_email: str = Field(..., description="메일을 수신할 사람의 이메일 주소")
-    
 
 class SendOutLookMail(BaseTool):
     name: str = "SendOutLookMail"
     description: str = "분석한 보고서를 이메일로 발송하는 tool 입니다."
     args_schema: Type[BaseModel] = SendOutLookMailInput
 
-    def _run(self, subject:str, body:str, recipient_email: str) -> str:
+    def _run(self, subject: str, body: str) -> str:
+        configured_recipient = os.environ.get("RECIPIENT_EMAIL", "").strip()
+        if not configured_recipient :
+            return "아웃룩 메일 발송 실패: RECIPIENT_EMAIL이 유효하게 설정되지 않았습니다."
 
-        #return send_outlook_email(subject, body, recipient_email)
-        return send_google_email(subject, body, recipient_email)
+        #print(f"Sending email to {configured_recipient}", flush=True)
+        return send_outlook_email(subject, body, configured_recipient)
+        #return send_google_email(subject, body, recipient_email)

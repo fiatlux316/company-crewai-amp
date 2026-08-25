@@ -1,8 +1,7 @@
 {
   "output_path": "./output/output.md",
   "time_range": "last 1 hours",
-  "datadog_query": "service:erody-bo-backend-20 status:error",
-  "seach_option": "logs",
-  "limit": "3",
-  "recipient_email": "jck@shinsegae.com"
+  "datadog_query": "service:erody-bo-backend-20 @http.status_code:[400 TO 599]",
+  "search_option": "logs",
+  "limit": "10"
 }

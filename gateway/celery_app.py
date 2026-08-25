@@ -1,12 +1,20 @@
 import os
 import importlib
 import inspect
+import json
+import threading
+import time
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from celery import Celery
 from gateway.database import SessionLocal, TaskRecord
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 celery_app = Celery("crew_tasks", broker=REDIS_URL, backend=REDIS_URL)
+SCHEDULE_TIMEZONE = ZoneInfo("Asia/Seoul")
+SCHEDULE_POLL_SECONDS = 30
+_schedule_lock = threading.Lock()
 
 def snake_to_camel(snake_str):
     return "".join(x.capitalize() for x in snake_str.split("_"))
@@ -38,6 +46,101 @@ def get_crew_info(crew_id: str):
         "class": class_name,
         "crew_id": actual_crew_id
     }
+
+def _crew_dir(crew_id: str):
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crews", crew_id)
+
+def _create_and_enqueue(crew_id: str):
+    crew_path = _crew_dir(crew_id)
+    inputs = {}
+    inputs_path = os.path.join(crew_path, "default_inputs.json")
+    if os.path.isfile(inputs_path):
+        try:
+            with open(inputs_path, "r", encoding="utf-8") as f:
+                loaded_inputs = json.load(f)
+                if isinstance(loaded_inputs, dict):
+                    inputs = loaded_inputs
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    db = SessionLocal()
+    try:
+        task = TaskRecord(crew_id=crew_id, inputs=inputs)
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        execute_crew_kickoff.delay(task.id, crew_id, inputs)
+    finally:
+        db.close()
+
+def _schedule_is_due(schedule, now):
+    if not schedule.get("enabled"):
+        return False
+    frequency = schedule.get("frequency")
+    last_run = schedule.get("last_run_at")
+    if last_run:
+        try:
+            last_run_time = datetime.fromisoformat(last_run).astimezone(SCHEDULE_TIMEZONE)
+        except ValueError:
+            last_run_time = None
+    else:
+        last_run_time = None
+
+    if frequency == "minute":
+        return last_run_time is None or now - last_run_time >= timedelta(minutes=int(schedule.get("interval", 1)))
+    if frequency == "hour":
+        return last_run_time is None or now - last_run_time >= timedelta(hours=int(schedule.get("interval", 1)))
+
+    run_at = schedule.get("run_at")
+    if not run_at:
+        return False
+    try:
+        scheduled_time = datetime.fromisoformat(run_at)
+        if scheduled_time.tzinfo is None:
+            scheduled_time = scheduled_time.replace(tzinfo=SCHEDULE_TIMEZONE)
+        scheduled_time = scheduled_time.astimezone(SCHEDULE_TIMEZONE)
+    except ValueError:
+        return False
+
+    if frequency == "date":
+        return last_run_time is None and now >= scheduled_time
+    if frequency == "weekday":
+        return now.weekday() in schedule.get("weekdays", []) and now.hour == scheduled_time.hour and now.minute == scheduled_time.minute and (last_run_time is None or last_run_time.date() < now.date())
+    return False
+
+def _schedule_loop():
+    print(
+        f"Crew schedule runner started ({SCHEDULE_TIMEZONE.key}, "
+        f"poll={SCHEDULE_POLL_SECONDS}s)",
+        flush=True,
+    )
+    while True:
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            crews_dir = os.path.join(base_dir, "crews")
+            now = datetime.now(SCHEDULE_TIMEZONE).replace(second=0, microsecond=0)
+            for crew_id in os.listdir(crews_dir) if os.path.isdir(crews_dir) else []:
+                schedule_path = os.path.join(crews_dir, crew_id, "schedule.json")
+                if not os.path.isfile(schedule_path):
+                    continue
+                try:
+                    with open(schedule_path, "r", encoding="utf-8") as f:
+                        schedule = json.load(f)
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if not _schedule_is_due(schedule, now):
+                    continue
+                with _schedule_lock:
+                    _create_and_enqueue(crew_id)
+                    schedule["last_run_at"] = now.isoformat()
+                    if schedule.get("frequency") == "date":
+                        schedule["enabled"] = False
+                    with open(schedule_path, "w", encoding="utf-8") as f:
+                        json.dump(schedule, f, ensure_ascii=False, indent=2)
+                print(f"Scheduled crew enqueued: {crew_id} at {now.isoformat()}", flush=True)
+        except Exception as e:
+            print(f"Schedule runner error: {e}", flush=True)
+        time.sleep(SCHEDULE_POLL_SECONDS)
 
 @celery_app.task(name="execute_crew_kickoff")
 def execute_crew_kickoff(task_id: str, crew_id: str, inputs: dict):
@@ -103,3 +206,8 @@ def execute_crew_kickoff(task_id: str, crew_id: str, inputs: dict):
     finally:
         db.commit()
         db.close()
+
+if os.getenv("SCHEDULE_RUNNER_ENABLED", "false").lower() == "true":
+    threading.Thread(target=_schedule_loop, daemon=True, name="crew-schedule-runner").start()
+else:
+    print("Crew schedule runner disabled", flush=True)

@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "frequency": "hour",
+  "interval": 1,
+  "run_at": null,
+  "weekdays": [],
+  "last_run_at": "2026-08-25T15:15:00+09:00"
+}

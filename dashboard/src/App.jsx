@@ -16,7 +16,8 @@ import {
   Code,
   UploadCloud,
   FileCheck,
-  Trash2
+  Trash2,
+  CalendarClock
 } from 'lucide-react';
 
 export default function App() {
@@ -37,6 +38,14 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSavingInputs, setIsSavingInputs] = useState(false);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    enabled: false,
+    frequency: 'minute',
+    interval: 1,
+    run_at: '',
+    weekdays: [],
+  });
   const [pollingTaskId, setPollingTaskId] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -147,6 +156,13 @@ export default function App() {
       } else {
         setInputsJson(JSON.stringify(defaultInputs, null, 2));
       }
+      setScheduleForm({
+        enabled: Boolean(selectedCrew.schedule?.enabled),
+        frequency: selectedCrew.schedule?.frequency || 'minute',
+        interval: selectedCrew.schedule?.interval || 1,
+        run_at: selectedCrew.schedule?.run_at || '',
+        weekdays: selectedCrew.schedule?.weekdays || [],
+      });
     }
   }, [selectedCrew]);
 
@@ -249,6 +265,46 @@ export default function App() {
       setIsSavingInputs(false);
     }
   };
+
+  const handleSaveSchedule = async () => {
+    if (!selectedCrew) return;
+    setErrorMsg('');
+    const schedule = {
+      ...scheduleForm,
+      interval: Number(scheduleForm.interval),
+      run_at: scheduleForm.frequency === 'weekday'
+        ? `2000-01-01T${scheduleForm.run_at}`
+        : (scheduleForm.run_at || null),
+    };
+
+    if (schedule.enabled && scheduleForm.frequency === 'date' && !scheduleForm.run_at) {
+      setErrorMsg('Select a date and time for the schedule.');
+      return;
+    }
+    if (schedule.enabled && scheduleForm.frequency === 'weekday' && (!scheduleForm.run_at || scheduleForm.weekdays.length === 0)) {
+      setErrorMsg('Select at least one weekday and a time.');
+      return;
+    }
+
+    setIsSavingSchedule(true);
+    try {
+      const result = await fetchWithAuth(`/api/v1/crews/${selectedCrew.crew_id}/schedule`, {
+        method: 'PUT',
+        body: JSON.stringify(schedule),
+      });
+      const updatedCrew = { ...selectedCrew, schedule: result.schedule };
+      setSelectedCrew(updatedCrew);
+      setCrews((currentCrews) => currentCrews.map((crew) => (
+        crew.crew_id === updatedCrew.crew_id ? updatedCrew : crew
+      )));
+    } catch (e) {
+      setErrorMsg(`Failed to save schedule: ${e.message}`);
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   // 8. ZIP 파일 업로드 및 에이전트 등록 요청 (중복 검사 및 진행률 추적 XHR 적용)
   const handleUploadSubmit = (e) => {
@@ -765,6 +821,111 @@ export default function App() {
                     >
                       {isSavingInputs ? 'Saving...' : 'Save Defaults'}
                     </button>
+                  </div>
+
+                  <div className="schedule-panel">
+                    <div className="schedule-heading">
+                      <span className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: 0 }}>
+                        <CalendarClock size={15} /> EXECUTION SCHEDULE
+                      </span>
+                      <label className="schedule-toggle">
+                        <input
+                          type="checkbox"
+                          checked={scheduleForm.enabled}
+                          onChange={(e) => setScheduleForm({ ...scheduleForm, enabled: e.target.checked })}
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+
+                    <div className="schedule-fields">
+                      <label className="form-label">
+                        Frequency
+                        <select
+                          className="input-field"
+                          value={scheduleForm.frequency}
+                          onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value, run_at: '' })}
+                        >
+                          <option value="minute">Every minutes</option>
+                          <option value="hour">Every hours</option>
+                          <option value="date">Specific date</option>
+                          <option value="weekday">Weekdays</option>
+                        </select>
+                      </label>
+
+                      {(scheduleForm.frequency === 'minute' || scheduleForm.frequency === 'hour') && (
+                        <label className="form-label">
+                          Interval
+                          <input
+                            className="input-field"
+                            type="number"
+                            min="1"
+                            max={scheduleForm.frequency === 'hour' ? '24' : '1440'}
+                            value={scheduleForm.interval}
+                            onChange={(e) => setScheduleForm({ ...scheduleForm, interval: e.target.value })}
+                          />
+                        </label>
+                      )}
+
+                      {scheduleForm.frequency === 'date' && (
+                        <label className="form-label">
+                          Date and time
+                          <input
+                            className="input-field"
+                            type="datetime-local"
+                            value={scheduleForm.run_at}
+                            onChange={(e) => setScheduleForm({ ...scheduleForm, run_at: e.target.value })}
+                          />
+                        </label>
+                      )}
+
+                      {scheduleForm.frequency === 'weekday' && (
+                        <>
+                          <label className="form-label">
+                            Time
+                            <input
+                              className="input-field"
+                              type="time"
+                              value={scheduleForm.run_at ? scheduleForm.run_at.slice(11, 16) : ''}
+                              onChange={(e) => setScheduleForm({ ...scheduleForm, run_at: e.target.value })}
+                            />
+                          </label>
+                          <div className="form-label">
+                            Days
+                            <div className="weekday-list">
+                              {weekdayLabels.map((label, day) => (
+                                <label key={label} className="weekday-option">
+                                  <input
+                                    type="checkbox"
+                                    checked={scheduleForm.weekdays.includes(day)}
+                                    onChange={(e) => setScheduleForm({
+                                      ...scheduleForm,
+                                      weekdays: e.target.checked
+                                        ? [...scheduleForm.weekdays, day].sort()
+                                        : scheduleForm.weekdays.filter((value) => value !== day),
+                                    })}
+                                  />
+                                  {label}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="schedule-footer">
+                      <span className="card-meta">
+                        {scheduleForm.enabled ? 'Schedule is active' : 'Schedule is disabled'}
+                      </span>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={handleSaveSchedule}
+                        disabled={isSavingSchedule}
+                      >
+                        {isSavingSchedule ? 'Saving...' : 'Save Schedule'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
