@@ -19,6 +19,7 @@ services:
       - shared-db:/app/data
       - ./gateway:/app/gateway
       - ./crews:/app/crews
+      - ./mcp_server:/app/mcp_server
     depends_on:
       - redis
 
@@ -32,6 +33,8 @@ services:
   worker:
     build: .
     command: celery -A gateway.celery_app.celery_app worker --loglevel=info -c 2
+    ports:
+      - "8012:8012"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:////app/data/crew_amp.db
@@ -41,6 +44,7 @@ services:
       - shared-db:/app/data
       - ./gateway:/app/gateway
       - ./crews:/app/crews
+      - ./mcp_server:/app/mcp_server
     depends_on:
       - redis
 

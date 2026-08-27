@@ -9,3 +9,5 @@ pydantic-settings>=2.2.1
 markdown>=3.10.3
 crewai[bedrock]==1.14.7
 crewai[google-genai]==1.14.7
+fastmcp>=3.4.0
+mcp>=1.0.0

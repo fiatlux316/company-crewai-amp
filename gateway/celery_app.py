@@ -211,3 +211,70 @@ if os.getenv("SCHEDULE_RUNNER_ENABLED", "false").lower() == "true":
     threading.Thread(target=_schedule_loop, daemon=True, name="crew-schedule-runner").start()
 else:
     print("Crew schedule runner disabled", flush=True)
+
+# ==========================================
+# 💡 Shared MCP Server Celery Lifecycle Hook
+# ==========================================
+import subprocess
+import sys
+import atexit
+from celery.signals import worker_ready, worker_shutdown
+
+mcp_server_process = None
+
+def start_shared_mcp_server():
+    global mcp_server_process
+    if mcp_server_process is not None:
+        return
+        
+    print("[Celery Hook] Starting shared MCP server...", flush=True)
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        server_path = os.path.join(base_dir, "mcp_server", "server.py")
+        
+        mcp_server_process = subprocess.Popen(
+            [sys.executable, server_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            env={**os.environ, "FASTMCP_PORT": "8012", "FASTMCP_HOST": "0.0.0.0"}
+        )
+        print(f"[Celery Hook] Shared MCP server started with PID: {mcp_server_process.pid}", flush=True)
+        
+        def log_reader(pipe, name):
+            for line in pipe:
+                print(f"[MCP Server {name}] {line.strip()}", flush=True)
+                
+        threading.Thread(target=log_reader, args=(mcp_server_process.stdout, "OUT"), daemon=True).start()
+        threading.Thread(target=log_reader, args=(mcp_server_process.stderr, "ERR"), daemon=True).start()
+        
+    except Exception as e:
+        print(f"[Celery Hook] Failed to start shared MCP server: {e}", file=sys.stderr, flush=True)
+
+def stop_shared_mcp_server():
+    global mcp_server_process
+    if mcp_server_process is not None:
+        print("[Celery Hook] Stopping shared MCP server...", flush=True)
+        try:
+            mcp_server_process.terminate()
+            try:
+                mcp_server_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                mcp_server_process.kill()
+            print("[Celery Hook] Shared MCP server stopped.", flush=True)
+        except Exception as e:
+            print(f"[Celery Hook] Error stopping shared MCP server: {e}", file=sys.stderr, flush=True)
+        finally:
+            mcp_server_process = None
+
+@worker_ready.connect
+def on_worker_ready(sender, **kwargs):
+    start_shared_mcp_server()
+
+@worker_shutdown.connect
+def on_worker_shutdown(sender, **kwargs):
+    stop_shared_mcp_server()
+
+atexit.register(stop_shared_mcp_server)
+

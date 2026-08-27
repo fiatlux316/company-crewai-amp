@@ -12,11 +12,30 @@ class DatadogMonitoringV2():
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
 
+    def __init__(self, mcp_tools=None):
+        self.mcp_tools = mcp_tools or []
+
+    def _get_mcp_tool_by_name(self, name: str):
+        for tool in self.mcp_tools:
+            if tool.name == name:
+                return tool
+        return None
+
+    def _get_mcp_tools_by_names(self, names: list[str]):
+        res = []
+        for name in names:
+            tool = self._get_mcp_tool_by_name(name)
+            if tool:
+                res.append(tool)
+        return res
+
     @agent
     def datadog_log_retrieval_specialist(self) -> Agent:
+        mcp_tools = self._get_mcp_tools_by_names(["search_datadog_logs", "search_datadog_apm"])
+        tools = mcp_tools if mcp_tools else [DatadogLogsSearch()]
         return Agent(
             config=self.agents_config['datadog_log_retrieval_specialist'],
-            tools=[DatadogLogsSearch()],
+            tools=tools,
             verbose=True,
             reasoning=False,
             max_reasoning_attempts=None,
@@ -60,9 +79,11 @@ class DatadogMonitoringV2():
     
     @agent
     def notification_dispatcher(self) -> Agent:
+        mcp_tools = self._get_mcp_tools_by_names(["send_outlook_email", "send_google_email"])
+        tools = mcp_tools if mcp_tools else [SendOutLookMail()]
         return Agent(
             config=self.agents_config['notification_dispatcher'],
-            tools=[SendOutLookMail()],
+            tools=tools,
             verbose=True,
             reasoning=False,
             max_reasoning_attempts=None,
