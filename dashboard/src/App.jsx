@@ -17,7 +17,8 @@ import {
   UploadCloud,
   FileCheck,
   Trash2,
-  CalendarClock
+  CalendarClock,
+  User
 } from 'lucide-react';
 
 export default function App() {
@@ -740,8 +741,9 @@ export default function App() {
                               <Cpu size={16} className="text-accent" style={{ color: 'var(--accent-primary)' }} />
                               {crew.display_name}
                             </span>
-                            <span className="card-meta" style={{ display: 'block', marginTop: '0.25rem', fontFamily: 'var(--font-mono)' }}>
-                              id: {crew.crew_id}
+                            <span className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.25rem' }}>
+                              <User size={13} style={{ opacity: 0.7 }} />
+                              {crew.metadata?.deployed_by?.name ? `by: ${crew.metadata.deployed_by.name}` : `id: ${crew.crew_id}`}
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

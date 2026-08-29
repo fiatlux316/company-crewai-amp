@@ -1,0 +1,11 @@
+{
+  "crew_id": "datadog_monitoring_v2",
+  "display_name": "Datadog Monitoring V2",
+  "deployed_by": {
+    "email": "system@company.com",
+    "name": "System Deployer",
+    "employee_id": "SYSTEM",
+    "auth_provider": "M365_EntraID"
+  },
+  "deployed_at": "2026-08-29T23:48:47.467886+09:00"
+}

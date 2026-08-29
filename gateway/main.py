@@ -26,7 +26,7 @@ app.add_middleware(
 )
 
 security = HTTPBearer()
-API_KEY = os.getenv("CREWAI_API_KEY", "super-secret-company-key")
+API_KEY = os.getenv("CREWAI_AMP_KEY", "super-secret-company-key")
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security)):
     if credentials.credentials != API_KEY:
@@ -92,12 +92,22 @@ def list_crews(token: str = Depends(verify_api_key)):
                 except (OSError, json.JSONDecodeError):
                     pass
 
+            metadata = {}
+            metadata_path = os.path.join(crew_path, "metadata.json")
+            if os.path.isfile(metadata_path):
+                try:
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                except (OSError, json.JSONDecodeError):
+                    pass
+
             crews.append({
                 "crew_id": item,
                 "display_name": " ".join(x.capitalize() for x in item.split("_")),
                 "path": f"crews/{item}",
                 "default_inputs": default_inputs,
                 "schedule": schedule,
+                "metadata": metadata,
             })
     return crews
 
