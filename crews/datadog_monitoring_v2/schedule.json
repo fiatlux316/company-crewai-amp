@@ -1,8 +1,0 @@
-{
-  "enabled": false,
-  "frequency": "hour",
-  "interval": 1,
-  "run_at": null,
-  "weekdays": [],
-  "last_run_at": null
-}

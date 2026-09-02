@@ -1,6 +1,7 @@
 import os
 import json
 import tempfile
+from fastmcp import Client
 from fastapi import FastAPI, Depends, HTTPException, Security, status, File, UploadFile
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
@@ -48,6 +49,60 @@ class ScheduleRequest(BaseModel):
     interval: int = 1
     run_at: str | None = None
     weekdays: list[int] = []
+
+
+def _serialize_mcp_tool(tool):
+    """MCP Tool 모델을 대시보드에서 사용하기 쉬운 JSON 구조로 변환합니다."""
+    if hasattr(tool, "model_dump"):
+        raw = tool.model_dump(by_alias=True, exclude_none=True)
+    else:
+        raw = {
+            key: getattr(tool, key)
+            for key in (
+                "name", "title", "description", "inputSchema", "outputSchema",
+                "annotations", "execution", "meta"
+            )
+            if getattr(tool, key, None) is not None
+        }
+
+    annotations = raw.get("annotations") or {}
+    return {
+        "name": raw.get("name", ""),
+        "title": raw.get("title") or annotations.get("title") or raw.get("name", ""),
+        "description": raw.get("description") or "",
+        "input_schema": raw.get("inputSchema") or raw.get("input_schema") or {},
+        "output_schema": raw.get("outputSchema") or raw.get("output_schema") or {},
+        "annotations": annotations,
+        "execution": raw.get("execution") or {},
+        "meta": raw.get("_meta") or raw.get("meta") or {},
+    }
+
+
+@app.get("/api/v1/mcp/tools")
+async def list_mcp_tools(token: str = Depends(verify_api_key)):
+    """공유 MCP 서버가 현재 노출하는 모든 도구와 JSON Schema를 반환합니다."""
+    server_url = os.getenv("SHARED_MCP_SERVER_URL", "http://worker:8012/sse")
+
+    try:
+        client = Client(server_url)
+        async with client:
+            tools = await client.list_tools()
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to load tools from the shared MCP server: {e}",
+        ) from e
+
+    serialized_tools = sorted(
+        (_serialize_mcp_tool(tool) for tool in tools),
+        key=lambda item: item["name"].lower(),
+    )
+    return {
+        "server": "Shared DevOps Monitoring MCP Server",
+        "transport": "SSE",
+        "count": len(serialized_tools),
+        "tools": serialized_tools,
+    }
 
 # 1. crews 폴더 동적 스캔 및 default_inputs 포함 엔드포인트
 @app.get("/api/v1/crews")

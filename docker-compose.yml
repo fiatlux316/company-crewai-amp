@@ -11,6 +11,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:////app/data/crew_amp.db
       - CREWAI_API_KEY=super-secret-company-key
+      - SHARED_MCP_SERVER_URL=http://worker:8012/sse
       - SCHEDULE_RUNNER_ENABLED=true
       - WATCHFILES_FORCE_POLLING=true
       # 로컬 테스트용이므로 실제 OpenAI API 키는 주입하지 않음 (Mock Crew 실행 예정)

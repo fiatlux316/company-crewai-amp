@@ -18,8 +18,63 @@ import {
   FileCheck,
   Trash2,
   CalendarClock,
-  User
+  User,
+  Wrench,
+  RefreshCw,
+  Search
 } from 'lucide-react';
+
+const formatSchemaType = (definition = {}) => {
+  if (Array.isArray(definition.type)) return definition.type.join(' | ');
+  if (definition.type === 'array' && definition.items?.type) return `array<${definition.items.type}>`;
+  return definition.type || definition.anyOf?.map((item) => item.type).filter(Boolean).join(' | ') || 'any';
+};
+
+function SchemaDetails({ title, schema }) {
+  const properties = Object.entries(schema?.properties || {});
+  const required = new Set(schema?.required || []);
+
+  return (
+    <section className="mcp-schema-section">
+      <div className="mcp-section-heading">
+        <Code size={15} />
+        <span>{title}</span>
+        <span className="mcp-count-badge">{properties.length}</span>
+      </div>
+
+      {properties.length > 0 ? (
+        <div className="mcp-schema-table-wrap">
+          <table className="mcp-schema-table">
+            <thead>
+              <tr>
+                <th>필드</th>
+                <th>타입</th>
+                <th>필수</th>
+                <th>설명 / 제약</th>
+              </tr>
+            </thead>
+            <tbody>
+              {properties.map(([name, definition]) => (
+                <tr key={name}>
+                  <td><code>{name}</code></td>
+                  <td><span className="mcp-type-badge">{formatSchemaType(definition)}</span></td>
+                  <td>{required.has(name) ? <span className="mcp-required">required</span> : <span className="mcp-optional">optional</span>}</td>
+                  <td>
+                    <div>{definition.description || '-'}</div>
+                    {definition.enum && <div className="mcp-constraint">enum: {definition.enum.join(', ')}</div>}
+                    {definition.default !== undefined && <div className="mcp-constraint">default: {JSON.stringify(definition.default)}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="mcp-empty-schema">정의된 필드가 없습니다.</div>
+      )}
+    </section>
+  );
+}
 
 export default function App() {
   // 1. 상태 정의 (State Definitions)
@@ -31,6 +86,11 @@ export default function App() {
   );
   const [crews, setCrews] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [mcpTools, setMcpTools] = useState([]);
+  const [selectedMcpTool, setSelectedMcpTool] = useState(null);
+  const [mcpSearch, setMcpSearch] = useState('');
+  const [mcpServerInfo, setMcpServerInfo] = useState(null);
+  const [isLoadingMcpTools, setIsLoadingMcpTools] = useState(false);
 
   const [activeTab, setActiveTab] = useState('crews'); // 'crews' | 'history' | 'upload'
   const [selectedCrew, setSelectedCrew] = useState(null);
@@ -139,6 +199,32 @@ export default function App() {
       setTasks(data);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const loadMcpTools = async () => {
+    setIsLoadingMcpTools(true);
+    setErrorMsg('');
+    try {
+      const data = await fetchWithAuth('/api/v1/mcp/tools');
+      const tools = data.tools || [];
+      setMcpTools(tools);
+      setMcpServerInfo({
+        name: data.server,
+        transport: data.transport,
+        count: data.count ?? tools.length,
+      });
+      setSelectedMcpTool((current) => (
+        tools.find((tool) => tool.name === current?.name) || tools[0] || null
+      ));
+    } catch (e) {
+      console.error(e);
+      setMcpTools([]);
+      setSelectedMcpTool(null);
+      setMcpServerInfo(null);
+      setErrorMsg(`Failed to load MCP tools: ${e.message}`);
+    } finally {
+      setIsLoadingMcpTools(false);
     }
   };
 
@@ -458,6 +544,14 @@ export default function App() {
     });
   };
 
+  const filteredMcpTools = mcpTools.filter((tool) => {
+    const keyword = mcpSearch.trim().toLowerCase();
+    if (!keyword) return true;
+    return [tool.name, tool.title, tool.description]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(keyword));
+  });
+
   return (
     <div className="app-container">
       {/* SIDEBAR NAVIGATION */}
@@ -500,6 +594,17 @@ export default function App() {
           >
             <History size={18} />
             <span>Execution History</span>
+          </li>
+
+          <li
+            className={`nav-item ${activeTab === 'mcp' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('mcp');
+              loadMcpTools();
+            }}
+          >
+            <Wrench size={18} />
+            <span>MCP 목록</span>
           </li>
         </ul>
 
@@ -934,10 +1039,122 @@ export default function App() {
             </div>
           </div>
         )}
+        {/* 3. MCP TOOLS CATALOG TAB */}
+        {activeTab === 'mcp' && (
+          <div>
+            <div className="content-header mcp-header">
+              <div>
+                <h2 className="header-title">MCP 목록</h2>
+                <p className="header-subtitle">공유 MCP 서버가 제공하는 도구와 입출력 메타데이터를 조회합니다.</p>
+              </div>
+              <button className="btn btn-secondary" onClick={loadMcpTools} disabled={isLoadingMcpTools}>
+                <RefreshCw size={16} className={isLoadingMcpTools ? 'animate-spin' : ''} />
+                {isLoadingMcpTools ? '불러오는 중...' : '새로고침'}
+              </button>
+            </div>
 
+            <div className="mcp-server-summary">
+              <div className="mcp-server-icon"><Database size={20} /></div>
+              <div>
+                <strong>{mcpServerInfo?.name || 'Shared MCP Server'}</strong>
+                <span>{mcpServerInfo ? `${mcpServerInfo.transport} · 연결됨` : '서버 연결 대기 중'}</span>
+              </div>
+              <span className="mcp-tool-total">{mcpServerInfo?.count ?? mcpTools.length} tools</span>
+            </div>
 
+            <div className="mcp-layout">
+              <aside className="mcp-catalog-panel">
+                <div className="mcp-search-box">
+                  <Search size={16} />
+                  <input
+                    value={mcpSearch}
+                    onChange={(event) => setMcpSearch(event.target.value)}
+                    placeholder="도구 이름 또는 설명 검색"
+                    aria-label="MCP 도구 검색"
+                  />
+                </div>
 
-        {/* 3. HISTORY & DETAILED VIEW TAB */}
+                <div className="mcp-list-heading">
+                  <span>사용 가능한 도구</span>
+                  <span>{filteredMcpTools.length}</span>
+                </div>
+
+                <div className="mcp-tool-list">
+                  {isLoadingMcpTools ? (
+                    <div className="mcp-list-empty"><Loader2 size={22} className="animate-spin" /> MCP 도구를 조회하고 있습니다.</div>
+                  ) : filteredMcpTools.length === 0 ? (
+                    <div className="mcp-list-empty">표시할 MCP 도구가 없습니다.</div>
+                  ) : (
+                    filteredMcpTools.map((tool) => (
+                      <button
+                        key={tool.name}
+                        type="button"
+                        className={`mcp-tool-item ${selectedMcpTool?.name === tool.name ? 'active' : ''}`}
+                        onClick={() => setSelectedMcpTool(tool)}
+                      >
+                        <span className="mcp-tool-item-icon"><Wrench size={15} /></span>
+                        <span className="mcp-tool-item-copy">
+                          <strong>{tool.title || tool.name}</strong>
+                          <code>{tool.name}</code>
+                          <small>{tool.description || '설명이 제공되지 않았습니다.'}</small>
+                        </span>
+                        <ChevronRight size={16} />
+                      </button>
+                    ))
+                  )}
+                </div>
+              </aside>
+
+              <section className="mcp-detail-panel">
+                {selectedMcpTool ? (
+                  <>
+                    <div className="mcp-detail-header">
+                      <div>
+                        <span className="mcp-eyebrow">MCP TOOL</span>
+                        <h3>{selectedMcpTool.title || selectedMcpTool.name}</h3>
+                        <code>{selectedMcpTool.name}</code>
+                      </div>
+                      <span className="card-badge badge-success">available</span>
+                    </div>
+
+                    <p className="mcp-description">
+                      {selectedMcpTool.description || '이 도구에 대한 설명이 제공되지 않았습니다.'}
+                    </p>
+
+                    <SchemaDetails title="INPUT SCHEMA" schema={selectedMcpTool.input_schema} />
+                    <SchemaDetails title="OUTPUT SCHEMA" schema={selectedMcpTool.output_schema} />
+
+                    <section className="mcp-schema-section">
+                      <div className="mcp-section-heading"><Settings size={15} /><span>ANNOTATIONS & METADATA</span></div>
+                      <div className="mcp-meta-grid">
+                        <div>
+                          <span>Annotations</span>
+                          <pre className="code-block">{JSON.stringify(selectedMcpTool.annotations || {}, null, 2)}</pre>
+                        </div>
+                        <div>
+                          <span>Metadata</span>
+                          <pre className="code-block">{JSON.stringify(selectedMcpTool.meta || {}, null, 2)}</pre>
+                        </div>
+                      </div>
+                    </section>
+
+                    <details className="mcp-raw-details">
+                      <summary>전체 Tool Definition JSON 보기</summary>
+                      <pre className="code-block">{JSON.stringify(selectedMcpTool, null, 2)}</pre>
+                    </details>
+                  </>
+                ) : (
+                  <div className="mcp-detail-empty">
+                    <Wrench size={48} />
+                    <p>목록에서 MCP 도구를 선택하면 상세 메타데이터가 표시됩니다.</p>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        )}
+
+        {/* 4. HISTORY & DETAILED VIEW TAB */}
         {activeTab === 'history' && (
           <div>
             <div className="content-header">
