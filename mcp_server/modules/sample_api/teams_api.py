@@ -5,7 +5,7 @@ import json
 
 webhook_url = os.environ.get("TEAMS_WEBHOOK_URL")
 
-def send_teams(subject, body):
+def send_teams_message(subject, body):
 
     total_body = {
         "type": "messageCard",
