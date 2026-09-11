@@ -16,10 +16,13 @@ services:
       - WATCHFILES_FORCE_POLLING=true
       # 로컬 테스트용이므로 실제 OpenAI API 키는 주입하지 않음 (Mock Crew 실행 예정)
       - OPENAI_API_KEY=mock-key
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
     volumes:
       - shared-db:/app/data
       - ./gateway:/app/gateway
       - ./crews:/app/crews
+      - ./dashboard/img:/app/dashboard/img:ro
       - ./mcp_server:/app/mcp_server
     depends_on:
       - redis

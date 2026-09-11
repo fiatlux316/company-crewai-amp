@@ -24,6 +24,23 @@ import {
   Search
 } from 'lucide-react';
 
+function CrewThumbnail({ employeeId, apiEndpoint, deployedAt }) {
+  const src = employeeId
+    ? `${apiEndpoint.replace(/\/$/, '')}/img/${encodeURIComponent(employeeId)}.png?v=${encodeURIComponent(deployedAt || '')}`
+    : null;
+  const [failedSrc, setFailedSrc] = useState(null);
+
+  return (
+    <div className="crew-thumbnail" aria-hidden="true">
+      {src && src !== failedSrc ? (
+        <img src={src} alt="" loading="lazy" onError={() => setFailedSrc(src)} />
+      ) : (
+        <User size={24} />
+      )}
+    </div>
+  );
+}
+
 const formatSchemaType = (definition = {}) => {
   if (Array.isArray(definition.type)) return definition.type.join(' | ');
   if (definition.type === 'array' && definition.items?.type) return `array<${definition.items.type}>`;
@@ -840,8 +857,13 @@ export default function App() {
                         }}
                         onClick={() => setSelectedCrew(crew)}
                       >
-                        <div className="card-header">
-                          <div>
+                        <div className="card-header crew-card-header">
+                          <CrewThumbnail
+                            employeeId={crew.metadata?.deployed_by?.employee_id}
+                            apiEndpoint={apiEndpoint}
+                            deployedAt={crew.metadata?.deployed_at}
+                          />
+                          <div className="crew-card-details">
                             <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <Cpu size={16} className="text-accent" style={{ color: 'var(--accent-primary)' }} />
                               {crew.display_name}
@@ -851,7 +873,7 @@ export default function App() {
                               {crew.metadata?.deployed_by?.name ? `by: ${crew.metadata.deployed_by.name}` : `id: ${crew.crew_id}`}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                             <button
                               className="btn btn-secondary"
                               onClick={(e) => {

@@ -3,9 +3,10 @@
   "display_name": "Datadog Monitoring V3",
   "deployed_by": {
     "email": "system@company.com",
-    "name": "System Deployer",
-    "employee_id": "SYSTEM",
-    "auth_provider": "M365_EntraID"
+    "name": "조춘기",
+    "employee_id": "053455",
+    "auth_provider": "M365_EntraID",
+    "deployed_at": "2026-09-11T13:18:09.194689+09:00"
   },
-  "deployed_at": "2026-09-02T21:54:56.776369+09:00"
+  "updated_at": "2026-09-11T14:11:42.983392+09:00"
 }

@@ -7,7 +7,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Load Entra ID credentials from environment
 TENANT_ID = os.getenv("AZURE_TENANT_ID")
+print(f"[Auth] Using Azure Tenant ID: {TENANT_ID}")
 CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
+print(f"[Auth] Using Azure Client ID: {CLIENT_ID}")
 
 # Cache for Microsoft JWKS keys to prevent calling API on every request
 _jwks_cache = None

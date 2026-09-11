@@ -400,6 +400,10 @@ def delete_crew(
         )
 
 # 7. React SPA 정적 파일 서빙 및 폴백 라우팅
+image_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard/img"))
+os.makedirs(image_dir, exist_ok=True)
+app.mount("/img", StaticFiles(directory=image_dir), name="crew-profile-images")
+
 dist_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard/dist"))
 if os.path.exists(dist_dir):
     app.mount("/assets", StaticFiles(directory=os.path.join(dist_dir, "assets")), name="assets")

@@ -51,11 +51,23 @@ async def deploy_crew(
                 "email": current_user["email"],
                 "name": current_user["name"],
                 "employee_id": current_user["employee_id"],
-                "auth_provider": "M365_EntraID"
+                "auth_provider": "M365_EntraID",
+                "deployed_at": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).isoformat()
             },
-            "deployed_at": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).isoformat()
+            "updated_at": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).isoformat()
         }
-        
+
+        # 기존에 metadata.json 파일이 존재하면 이를 보존하고 업데이트
+        if os.path.isfile(metadata_path):
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as f:
+                    existing_metadata = json.load(f)
+                # 기존 배포자 정보와 배포 시간 보존
+                metadata["deployed_by"] = existing_metadata.get("deployed_by", metadata["deployed_by"])
+                #metadata["deployed_at"] = existing_metadata.get("deployed_at", metadata["deployed_at"])
+            except (OSError, json.JSONDecodeError) as e:
+                print(f"Failed to read existing metadata for {crew_id}: {e}")
+
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
             

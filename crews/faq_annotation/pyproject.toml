@@ -1,0 +1,28 @@
+[project]
+name = "faq_annotation"
+version = "0.1.0"
+description = "faq_annotation using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "agentops>=0.4.21",
+    "crewai-tools[mcp]>=1.14.7",
+    "crewai[bedrock,google-genai,tools]==1.14.7",
+    "pandas>=2.3.3",
+    "psycopg2-binary>=2.9.12",
+]
+
+[project.scripts]
+faq_annotation = "faq_annotation.main:run"
+run_crew = "faq_annotation.main:run"
+train = "faq_annotation.main:train"
+replay = "faq_annotation.main:replay"
+test = "faq_annotation.main:test"
+run_with_trigger = "faq_annotation.main:run_with_trigger"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"

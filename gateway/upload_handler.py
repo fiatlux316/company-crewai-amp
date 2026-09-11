@@ -85,6 +85,8 @@ def process_crew_zip(zip_file_path, filename, overwrite=False):
             default_inputs = extract_default_inputs(main_py)
             
         # 4. 대상 crews/ 디렉토리에 복사
+
+        ## 기존 schedule.json 파일이 존재하면 이를 보존
         existing_schedule = None
         existing_schedule_path = os.path.join(target_path, "schedule.json")
         if overwrite and os.path.isfile(existing_schedule_path):
@@ -93,6 +95,16 @@ def process_crew_zip(zip_file_path, filename, overwrite=False):
                     existing_schedule = json.load(f)
             except (OSError, json.JSONDecodeError) as e:
                 print(f"Failed to preserve existing schedule for {crew_id}: {e}")
+
+        ## 기존 metadata.json 파일이 존재하면 이를 보존
+        existing_metadata = None
+        existing_metadata_path = os.path.join(target_path, "metadata.json")
+        if overwrite and os.path.isfile(existing_metadata_path):
+            try:
+                with open(existing_metadata_path, 'r', encoding='utf-8') as f:
+                    existing_metadata = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                print(f"Failed to preserve existing metadata for {crew_id}: {e}")
 
         if os.path.exists(target_path):
             shutil.rmtree(target_path)
@@ -104,11 +116,22 @@ def process_crew_zip(zip_file_path, filename, overwrite=False):
         with open(inputs_path, 'w', encoding='utf-8') as f:
             json.dump(default_inputs, f, ensure_ascii=False, indent=2)
 
+        # 6. 기존 schedule.json 및 metadata.json 파일 복원
+        #print(f">>>>> existing_schedule = {existing_schedule}")    
         if existing_schedule is not None:
             schedule_path = os.path.join(target_path, "schedule.json")
             with open(schedule_path, 'w', encoding='utf-8') as f:
                 json.dump(existing_schedule, f, ensure_ascii=False, indent=2)
-            
+
+        #print(f">>>>> existing_metadata = {existing_metadata}")    
+        if existing_metadata is not None:
+            metadata_path = os.path.join(target_path, "metadata.json")
+            try:
+                with open(metadata_path, 'w', encoding='utf-8') as f:
+                    json.dump(existing_metadata, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"Failed to restore existing metadata for {crew_id}: {e}")
+
         return {
             "crew_id": crew_id,
             "display_name": " ".join(x.capitalize() for x in crew_id.split("_")),

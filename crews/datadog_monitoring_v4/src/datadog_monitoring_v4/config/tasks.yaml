@@ -1,0 +1,48 @@
+fetch_datadog_logs:
+  description: |-
+    Datadog Logs API를 사용하여 {time_range} 시간 범위 동안 {datadog_query} 쿼리와 일치하는 애플리케이션 로그를 가져옵니다. 최대 {limit}개의 로그 이벤트를 가져옵니다. 반환된 데이터에 타임스탬프, 로그 레벨, 메시지, 서비스 이름 및 스택 트레이스가 포함되도록 합니다.  Datadog 로그 검색 API 요청을 아래와 같이 구성합니다.  조회 옵션(search_option) 은 {search_option} 이고,  여기에 맞게 Tool 을 호출합니다. 데이터 0건 시 임의 생성 금지 및 "조회 결과 없음" 을 분명히 명시합니다.
+    - 예외사항 :  hostname_mismatch issue 는 오류가 아님으로 정상으로 간주하세요.
+  expected_output: 타임스탬프, 심각도 레벨, 서비스 이름, 로그 메시지 및 관련 오류 세부 정보나 스택 트레이스가 포함된 로그 항목을
+    비롯하여, JSON 또는 구조화된 텍스트 형식으로 Datadog에서 검색된 원본 로그 데이터입니다.
+  agent: datadog_log_retrieval_specialist
+analyze_application_logs:
+  description: |-
+    Datadog에서 가져온 원본 로그 데이터를 분석합니다. 분석에는 다음 내용이 포함되어야 합니다:  이전에 추출된 정보 이외에 임의적인 데이터 추론 및 분석을 하면 안됩니다.
+        - 심각한 오류 및 예외 식별 및 분류
+        - 경고 및 이상 징후 강조
+        - 반복되는 오류 패턴 또는 급증 감지
+        - 스택 트레이스 또는 근본 원인 지표 기록
+        - 오류 발생 빈도 및 영향을 받는 서비스 요약
+        - {time_range} 시간 범위 동안의 트렌드 파악
+  expected_output: 발생 횟수 및 타임스탬프가 포함된 심각한 오류 목록, 경고 요약, 감지된 이상 징후, 반복되는 패턴, 영향을 받는
+    서비스, 예비 근본 원인 가설을 포함하는 구조화된 로그 분석 결과입니다.
+  agent: application_error_analysis_expert
+  context:
+  - fetch_datadog_logs
+generate_log_report:
+  description: |-
+    구조화된 로그 분석 결과를 사용하여 엔지니어링 팀을 위한 포괄적이고 읽기 쉬운 마크다운 보고서를 생성합니다. 보고서에는 다음 내용이 포함되어야 합니다:
+        1. **핵심 요약(Executive Summary)** — 모니터링 기간 및 주요 발견 사항에 대한 간략한 개요
+        2. **심각한 오류(Critical Errors)** — 타임스탬프, 발생 빈도 및 영향을 받는 서비스가 포함된 상세 목록
+        3. **경고 및 이상 징후(Warnings & Anomalies)** — 주목할 만한 비치명적 문제
+        4. **트렌드(Trends)** — {time_range} 기간 동안 관찰된 패턴
+        5. **권장 사항(Recommendations)** — 엔지니어링 팀을 위한 실행 가능한 향후 단계
+        6. **부록(Appendix)** — 관련된 경우 원본 오류 샘플
+    보고서는 {output_path} 이름으로 저장합니다.
+  expected_output: 핵심 요약, 심각한 오류, 경고, 트렌드, 권장 사항 및 로그 샘플이 포함된 선택적 부록 등 모든 섹션을 다루는,
+    서식이 잘 지정된 완전한 마크다운 보고서입니다.
+  agent: technical_report_writer
+  context:
+  - analyze_application_logs
+  output_file: '{output_path}'
+send_report_via_email:
+  description: |-
+    생성된 로그 분석 보고서를 SendOutLookMail 도구를 호출 하여 전송합니다.
+        - 제목 : 애플리케이션 로그 모니터링 보고서 ({time_range})
+        - 본문 : 전체 마크다운 보고서 (가능한 경우 HTML로 서식 지정).
+        - 이메일이 성공적으로 전송되었는지 확인하고 전달을 확정합니다.
+  expected_output: 로그 모니터링 보고서가 포함된 이메일이 메일 서버를 통해  성공적으로 전송되었다는 확인(Confirmation)
+    메시지입니다.
+  agent: notification_dispatcher
+  context:
+  - generate_log_report

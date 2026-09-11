@@ -1,7 +1,7 @@
 {
-  "output_path": "./output/output.md",
-  "time_range": "last 1 hours",
-  "datadog_query": "service:erody-bo-backend-20 @http.status_code:[400 TO 599]",
-  "search_option": "logs",
-  "limit": "10"
+  "datadog_query": "여기에 datadog_query 값을 입력하세요",
+  "time_range": "여기에 time_range 값을 입력하세요",
+  "search_option": "여기에 search_option 값을 입력하세요",
+  "output_path": "여기에 output_path 값을 입력하세요",
+  "limit": "여기에 limit 값을 입력하세요"
 }

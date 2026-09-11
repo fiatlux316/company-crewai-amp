@@ -1,0 +1,12 @@
+{
+  "crew_id": "faq_annotation",
+  "display_name": "Faq Annotation",
+  "deployed_by": {
+    "email": "system@company.com",
+    "name": "곽새봄",
+    "employee_id": "383570",
+    "auth_provider": "M365_EntraID",
+    "deployed_at": "2026-09-09T16:29:54.255077+09:00"
+  },
+  "updated_at": "2026-09-09T16:29:54.255077+09:00"
+}
