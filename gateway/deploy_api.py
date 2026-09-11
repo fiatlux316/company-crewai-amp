@@ -12,6 +12,7 @@ router = APIRouter()
 @router.post("/api/v1/crews/deploy", status_code=201)
 async def deploy_crew(
     overwrite: bool = False,
+    employee_id: str = None,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
@@ -42,7 +43,7 @@ async def deploy_crew(
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         crew_path = os.path.join(base_dir, "crews", crew_id)
         metadata_path = os.path.join(crew_path, "metadata.json")
-        
+
         # M365 OIDC 클레임에서 파싱한 배포자 정보와 배포 시간 기록
         metadata = {
             "crew_id": crew_id,
@@ -50,7 +51,7 @@ async def deploy_crew(
             "deployed_by": {
                 "email": current_user["email"],
                 "name": current_user["name"],
-                "employee_id": current_user["employee_id"],
+                "employee_id": employee_id,
                 "auth_provider": "M365_EntraID",
                 "deployed_at": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).isoformat()
             },
