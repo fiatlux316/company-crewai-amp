@@ -189,24 +189,20 @@ export default function App() {
   };
 
   // 4. 데이터 로드 (Load Crews & Task History)
-  const loadCrews = async () => {
+  const loadCrews = async ({ signal, background = false } = {}) => {
     try {
-      setErrorMsg('');
-      const data = await fetchWithAuth('/api/v1/crews');
-      setCrews(data);
-      // 첫 로드 또는 에이전트 목록이 갱신되었을 때 선택 처리
-      if (data.length > 0) {
-        // 이미 선택된 crew가 리스트에 없다면 첫 번째로 변경
-        const stillExists = data.find(c => c.crew_id === selectedCrew?.crew_id);
-        if (!stillExists) {
-          setSelectedCrew(data[0]);
-        }
-      } else {
-        setSelectedCrew(null);
-      }
+      if (!background) setErrorMsg('');
+      const data = await fetchWithAuth('/api/v1/crews', { signal, cache: 'no-store' });
+      if (signal?.aborted) return;
+      setCrews((current) => JSON.stringify(current) === JSON.stringify(data) ? current : data);
+      // Preserve the selected object so polling does not reset unsaved input/schedule edits.
+      setSelectedCrew((current) => (
+        data.some((crew) => crew.crew_id === current?.crew_id) ? current : data[0] || null
+      ));
     } catch (e) {
+      if (signal?.aborted) return;
       console.error(e);
-      setErrorMsg(`Failed to load crews: ${e.message}. Please check API Key & URL.`);
+      if (!background) setErrorMsg(`Failed to load crews: ${e.message}. Please check API Key & URL.`);
     }
   };
 
@@ -246,8 +242,39 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadCrews();
     loadTasks();
+  }, [apiEndpoint, apiKey]);
+
+  useEffect(() => {
+    let stopped = false;
+    let timer;
+    let controller;
+    const refresh = async (background = true) => {
+      clearTimeout(timer);
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      const timeout = setTimeout(() => request.abort(), 10000);
+      try {
+        await loadCrews({ signal: request.signal, background });
+      } finally {
+        clearTimeout(timeout);
+        if (!stopped && controller === request) timer = setTimeout(refresh, 3000);
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    refresh(false);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      controller?.abort();
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [apiEndpoint, apiKey]);
 
   // 5. 선택된 Crew 변경 시, 해당 에이전트의 default_inputs 자동 인출 주입

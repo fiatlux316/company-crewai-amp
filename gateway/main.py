@@ -2,6 +2,7 @@ import os
 import json
 import tempfile
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 from fastapi import FastAPI, Depends, HTTPException, Security, status, File, UploadFile
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +51,9 @@ class ScheduleRequest(BaseModel):
     run_at: str | None = None
     weekdays: list[int] = []
 
+
+class McpToolCallRequest(BaseModel):
+    arguments: dict = {}
 
 def _serialize_mcp_tool(tool):
     """MCP Tool 모델을 대시보드에서 사용하기 쉬운 JSON 구조로 변환합니다."""
@@ -103,6 +107,43 @@ async def list_mcp_tools(token: str = Depends(verify_api_key)):
         "count": len(serialized_tools),
         "tools": serialized_tools,
     }
+
+
+@app.post("/api/v1/mcp/tools/{tool_name}/call")
+async def call_mcp_tool(
+    tool_name: str,
+    payload: McpToolCallRequest,
+    token: str = Depends(verify_api_key),
+):
+    """공유 MCP 서버에 등록된 특정 도구를 실제로 호출하여 테스트합니다."""
+    server_url = os.getenv("SHARED_MCP_SERVER_URL", "http://worker:8012/sse")
+
+    try:
+        client = Client(server_url)
+        async with client:
+            result = await client.call_tool(tool_name, payload.arguments)
+    except ToolError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tool '{tool_name}' execution failed: {e}",
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to call tool '{tool_name}' on the shared MCP server: {e}",
+        ) from e
+
+    content_texts = [
+        getattr(block, "text", str(block)) for block in getattr(result, "content", [])
+    ]
+
+    return {
+        "tool": tool_name,
+        "arguments": payload.arguments,
+        "data": getattr(result, "data", None),
+        "content": content_texts,
+    }
+
 
 # 1. crews 폴더 동적 스캔 및 default_inputs 포함 엔드포인트
 @app.get("/api/v1/crews")
