@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # API 게이트웨이
   gateway:
@@ -24,6 +22,7 @@ services:
       - ./crews:/app/crews
       - ./dashboard/img:/app/dashboard/img:ro
       - ./mcp_server:/app/mcp_server
+      - dashboard-dist:/app/dashboard/dist
     depends_on:
       - redis
 
@@ -52,6 +51,16 @@ services:
     depends_on:
       - redis
 
+  # 프론트엔드 프로덕션 빌드 전용 (1회성 빌드 -> gateway와 공유 볼륨에 dist 산출물 복사)
+  # 사용법: docker compose build dashboard-builder && docker compose run --rm dashboard-builder
+  dashboard-builder:
+    build:
+      context: .
+      target: frontend-builder
+    volumes:
+      - dashboard-dist:/output
+    command: sh -c "cp -rf /app/dashboard/dist/. /output/"
+
   # React 개발 서버
   dashboard:
     image: node:20-alpine
@@ -71,3 +80,4 @@ services:
 volumes:
   shared-db:
   dashboard-node-modules:
+  dashboard-dist:

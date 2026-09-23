@@ -3,3 +3,4 @@ __pycache__/
 .DS_Store
 dashboard/node_modules/
 dashboard/dist/
+crews/

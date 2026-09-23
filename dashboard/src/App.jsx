@@ -21,7 +21,11 @@ import {
   User,
   Wrench,
   RefreshCw,
-  Search
+  Search,
+  BookOpen,
+  Zap,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 function CrewThumbnail({ employeeId, apiEndpoint, deployedAt }) {
@@ -101,6 +105,9 @@ export default function App() {
   const [apiEndpoint, setApiEndpoint] = useState(
     () => localStorage.getItem('CREWAI_API_ENDPOINT') || window.location.origin
   );
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem('CREWAI_DASHBOARD_THEME') || 'dark'
+  );
   const [crews, setCrews] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [mcpTools, setMcpTools] = useState([]);
@@ -152,6 +159,10 @@ export default function App() {
     return name.replace(/-/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   };
 
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // 2. 환경 설정 자동 저장 (Auto-save configuration)
   useEffect(() => {
     localStorage.setItem('CREWAI_API_KEY', apiKey);
@@ -160,6 +171,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('CREWAI_API_ENDPOINT', apiEndpoint);
   }, [apiEndpoint]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('CREWAI_DASHBOARD_THEME', theme);
+  }, [theme]);
 
   // 3. API 공통 요청 유틸리티
   const fetchWithAuth = async (path, options = {}) => {
@@ -601,11 +617,22 @@ export default function App() {
       {/* SIDEBAR NAVIGATION */}
       <aside className="sidebar">
         <div className="logo-section">
-          <span className="logo-icon">🚀</span>
           <div>
-            <h1 className="logo-title">CrewAI AMP</h1>
-            <p className="logo-subtitle">Company Private Platform</p>
+            <span className="logo-icon">🚀</span>
+            <div>
+              <h1 className="logo-title">CrewAI AMP</h1>
+              <p className="logo-subtitle">Company Private Platform</p>
+            </div>
           </div>
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? '라이트 테마로 전환' : '다크 테마로 전환'}
+            aria-label="테마 전환"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </div>
 
         <ul className="nav-menu">
@@ -873,7 +900,7 @@ export default function App() {
                     </p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {crews.map((crew) => (
                       <div
                         key={crew.crew_id}
@@ -1239,7 +1266,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.525rem', maxHeight: '60vh', overflowY: 'auto' }}>
                   {tasks.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No task logs available.</p>
                   ) : (
@@ -1248,12 +1275,11 @@ export default function App() {
                         key={task.id}
                         className={`card ${selectedTask?.id === task.id ? 'active' : ''}`}
                         style={{
-                          padding: '1rem',
+                          padding: '0.4rem 1rem',
                           borderColor: selectedTask?.id === task.id ? 'var(--accent-primary)' : 'var(--border-color)',
                           backgroundColor: selectedTask?.id === task.id ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
                           // 카드 크기(높이) 고정 및 레이아웃 유지 설정
-                          height: '82px',
-                          minHeight: '82px',
+                          minHeight: '40px',
                           flexShrink: 0,
                           display: 'flex',
                           flexDirection: 'column',
@@ -1262,8 +1288,8 @@ export default function App() {
                         }}
                         onClick={() => setSelectedTask(task)}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', lineHeight: 1.1 }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>
                             {task.crew_id}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -1287,15 +1313,15 @@ export default function App() {
                                 }}
                                 title="Delete task record"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={12} />
                               </button>
                             )}
-                            <span className={`card-badge ${getStatusBadgeClass(task.status)}`}>
+                            <span className={`card-badge ${getStatusBadgeClass(task.status)}`} style={{ marginRight: '0.15rem', padding: '0.12rem 0.45rem', fontSize: '0.65rem' }}>
                               {task.status}
                             </span>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem', lineHeight: 1.1 }}>
                           <span style={{ fontFamily: 'var(--font-mono)' }}>{task.id.substring(0, 8)}...</span>
                           <span>{formatDate(task.created_at)}</span>
                         </div>

@@ -1,7 +1,0 @@
-{
-  "time_range": "last 24 hours",
-  "output_path": "report.md",
-  "datadog_query": "service:erody-assist-service",
-  "limit": "10",
-  "recipient_email": ""
-}

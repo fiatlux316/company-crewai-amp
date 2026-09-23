@@ -13,4 +13,6 @@ fastmcp>=3.4.0
 mcp>=1.0.0
 #sqlalchemy~=1.4.0
 psycopg2-binary
-pandas==2.1.0
+#numpy<2
+pandas
+agentops

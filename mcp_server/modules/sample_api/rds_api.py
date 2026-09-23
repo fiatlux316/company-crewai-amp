@@ -17,9 +17,10 @@ def execute_rds_query(db_identifier, query, params=None):
     """
 
     # db_idenfitier='postgresql+psycopg2://username:password@host:port/database'
-    print(f"Executing query on RDS: {db_identifier}")
-    if db_identifier is None:
+    print(f"db_identifier1: {db_identifier}")
+    if db_identifier is None or db_identifier.strip() == "":
         db_identifier = os.environ.get("DB_IDENTIFIER")
+    print(f"db_identifier2: {db_identifier}")
 
     if query is None:
         query = os.environ.get("DB_QUERY")
@@ -33,7 +34,7 @@ def execute_rds_query(db_identifier, query, params=None):
         ret = pd.read_sql(query, conn, params=params)
     except Exception as e:
         print(f"Error executing query: {e}")
-        ret = None
+        ret = f"Error: {e}"
     finally:
         if conn is not None:
             conn.close()    
